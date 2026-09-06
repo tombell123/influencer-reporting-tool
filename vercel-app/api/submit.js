@@ -233,8 +233,14 @@ module.exports = async (req, res) => {
       // came out of one batch, the deck side only ever expects one
       // platform/piece per submission anyway per the dropdown design).
       const primary = submissions[0];
+      // The form's dropdown speaks 'post1'/'post2'/'stories'; the deck
+      // logic speaks 'reel'/'stories'/'tiktok'. Post 1 and Post 2 both
+      // mean "the reel slide" -- the dropdown value only disambiguates
+      // which one when there's a collision, it's not a separate deck
+      // piece type. TikTok is determined by platform, not the dropdown.
+      const deckPiece = platform === 'TT' ? 'tiktok' : (contentPiece === 'stories' ? 'stories' : 'reel');
       try {
-        deckResult = await updateDeck(slidesClient, presentationId, influencer, platform, contentPiece, primary);
+        deckResult = await updateDeck(slidesClient, presentationId, influencer, platform, deckPiece, primary);
       } catch (err) {
         deckResult = { status: 'error', message: `Deck update failed: ${err.message}` };
       }
