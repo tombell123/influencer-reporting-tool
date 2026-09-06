@@ -30,7 +30,11 @@ async function updateDeck(slidesClient, presentationId, influencer, platform, pi
   if (matches.length === 1) {
     const updates = buildSlideUpdates(matches[0], submission, platform);
     if (updates.length === 0) {
-      return { status: 'no_change', message: 'Found the slide but nothing recognized needed updating.' };
+      return {
+        status: 'no_change',
+        message: 'Found the slide but nothing recognized needed updating.',
+        debug: { shapes: matches[0].shapes.map(s => ({ objectId: s.objectId, text: s.text })) },
+      };
     }
     const requests = updates.flatMap(u => [
       { deleteText: { objectId: u.objectId, textRange: { type: 'ALL' } } },
