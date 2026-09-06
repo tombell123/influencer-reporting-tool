@@ -640,7 +640,7 @@
         deckSummary = d.status === 'updated' ? ` · Deck: ${d.shapesChanged} box(es) updated`
           : d.status === 'cloned_and_updated' ? ` · Deck: new slide cloned, ${d.shapesChanged} box(es) filled in`
           : d.status === 'ambiguous' ? ` · Deck: ⚠ ${d.message}`
-          : d.status === 'no_change' ? ` · Deck: found the slide, nothing to change`
+          : d.status === 'no_change' ? ` · Deck: found the slide, nothing recognized to change. Shapes seen: ${JSON.stringify(d.debug?.shapes)}`
           : ` · Deck: ⚠ ${d.message}`;
       }
 
