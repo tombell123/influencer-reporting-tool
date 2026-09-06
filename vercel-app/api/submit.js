@@ -10,13 +10,98 @@ const { google } = require('googleapis');
 const { findExistingRow, buildAdditiveUpdate } = require('./lib/sheetLogic');
 const { EXTRACTION_SYSTEM_PROMPT, parseExtractionResponse } = require('./lib/extraction');
 const { assembleSubmissions, filterPiecesBySelection } = require('./lib/assemble');
+const { classifyPresentation, findSlides, findTemplate, buildSlideUpdates, buildTitleText } = require('./lib/slidesLogic');
+
+/** Updates an EXISTING slide's stat-box shapes in place, or clones a
+ * named template for a brand-new influencer. Returns a short status
+ * string for the response, and never throws for "expected" cases
+ * (ambiguous match, missing template) -- those come back as a status
+ * message, same pattern as the Sheet's needs_new_row handling. */
+async function updateDeck(slidesClient, presentationId, influencer, platform, piece, submission) {
+  const { data: presentation } = await slidesClient.presentations.get({ presentationId });
+  const classified = classifyPresentation(presentation);
+
+  const matches = findSlides(classified, influencer, platform, piece);
+
+  if (matches.length > 1) {
+    return { status: 'ambiguous', message: `Found ${matches.length} matching slides for ${influencer} -- this is the Post 1/Post 2 collision case; pick the specific one via the content-piece dropdown rather than submitting blind.` };
+  }
+
+  if (matches.length === 1) {
+    const updates = buildSlideUpdates(matches[0], submission, platform);
+    if (updates.length === 0) {
+      return { status: 'no_change', message: 'Found the slide but nothing recognized needed updating.' };
+    }
+    const requests = updates.flatMap(u => [
+      { deleteText: { objectId: u.objectId, textRange: { type: 'ALL' } } },
+      { insertText: { objectId: u.objectId, text: u.newText, insertionIndex: 0 } },
+    ]);
+    await slidesClient.presentations.batchUpdate({ presentationId, requestBody: { requests } });
+    return { status: 'updated', shapesChanged: updates.length };
+  }
+
+  // No match -- clone the template. This is the riskier path (it
+  // changes deck structure, not just text) so it only does the clone
+  // itself; filling in the new slide's numbers is a fast follow-up
+  // update using the exact same buildSlideUpdates logic once the
+  // clone's new objectId is known.
+  let template;
+  try {
+    template = findTemplate(classified, piece);
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+
+  const newSlideId = `slide_${Date.now()}`;
+  await slidesClient.presentations.batchUpdate({
+    presentationId,
+    requestBody: { requests: [{ duplicateObject: { objectId: template.objectId, objectIds: { [template.objectId]: newSlideId } } }] },
+  });
+
+  // Re-fetch to get the clone's actual shape objectIds (duplicateObject
+  // maps the page id but not each child shape id predictably), then
+  // apply the same update logic to the freshly cloned slide.
+  const { data: refreshed } = await slidesClient.presentations.get({ presentationId });
+  const reclassified = classifyPresentation(refreshed);
+  const clonedSlide = reclassified.find(s => s.objectId === newSlideId);
+  if (!clonedSlide) {
+    return { status: 'error', message: 'Cloned the template but could not locate the new slide afterward -- check the deck manually.' };
+  }
+
+  const requests = [];
+  // Title (shape[0]) and subtitle (shape[1]) are consistently the
+  // first two shapes on every real slide in this deck -- they're
+  // blank/placeholder on the template and need setting for the first
+  // time here, unlike an existing slide's title which is already
+  // correct and untouched by buildSlideUpdates.
+  if (clonedSlide.shapes[0] && clonedSlide.shapes[1]) {
+    const { title, subtitle } = buildTitleText(piece, influencer, submission);
+    requests.push(
+      { deleteText: { objectId: clonedSlide.shapes[0].objectId, textRange: { type: 'ALL' } } },
+      { insertText: { objectId: clonedSlide.shapes[0].objectId, text: title, insertionIndex: 0 } },
+      { deleteText: { objectId: clonedSlide.shapes[1].objectId, textRange: { type: 'ALL' } } },
+      { insertText: { objectId: clonedSlide.shapes[1].objectId, text: subtitle, insertionIndex: 0 } },
+    );
+  }
+
+  const updates = buildSlideUpdates(clonedSlide, submission, platform);
+  updates.forEach(u => requests.push(
+    { deleteText: { objectId: u.objectId, textRange: { type: 'ALL' } } },
+    { insertText: { objectId: u.objectId, text: u.newText, insertionIndex: 0 } },
+  ));
+
+  if (requests.length) {
+    await slidesClient.presentations.batchUpdate({ presentationId, requestBody: { requests } });
+  }
+  return { status: 'cloned_and_updated', shapesChanged: updates.length, titleSet: !!(clonedSlide.shapes[0] && clonedSlide.shapes[1]) };
+}
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { campaign, influencer, platform, followers, spreadsheetId, images, project, tabName, contentPiece } = req.body || {};
+  const { campaign, influencer, platform, followers, spreadsheetId, images, project, tabName, contentPiece, presentationId } = req.body || {};
   if (!campaign || !project || !influencer || !platform || !spreadsheetId || !images?.length) {
     return res.status(400).json({ error: 'Missing required fields (campaign and project are both required)' });
   }
@@ -137,7 +222,22 @@ module.exports = async (req, res) => {
       results.push({ channel: submission.channel, status: 'updated', cellsWritten: updates.length });
     }
 
-    return res.status(200).json({ results, warnings });
+    let deckResult = null;
+    if (presentationId) {
+      const slidesClient = google.slides({ version: 'v1', auth: client });
+      // Use the FIRST submission for the deck (matches the front
+      // end's single content-piece selection -- if both IG and TT
+      // came out of one batch, the deck side only ever expects one
+      // platform/piece per submission anyway per the dropdown design).
+      const primary = submissions[0];
+      try {
+        deckResult = await updateDeck(slidesClient, presentationId, influencer, platform, contentPiece, primary);
+      } catch (err) {
+        deckResult = { status: 'error', message: `Deck update failed: ${err.message}` };
+      }
+    }
+
+    return res.status(200).json({ results, warnings, deckResult });
 
   } catch (err) {
     return res.status(502).json({
