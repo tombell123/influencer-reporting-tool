@@ -586,6 +586,7 @@
   // this would come from the campaign dropdown's own config, same as
   // MOCK_DECKS above.
   const SPREADSHEET_ID = '1XuUaK968_Ac0T8GGzaGSQf3tYGT8Ko9FJeOf_92XJGg';
+  const PRESENTATION_ID = '113ifBlvWP7LeVdMxZ5jCb7HtwLZH5ovYTC0zE8XNyuo';
 
   function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -619,6 +620,7 @@
           influencer, platform, contentPiece,
           followers: followers ? Number(followers) : null,
           spreadsheetId: SPREADSHEET_ID,
+          presentationId: (updateDeckToggle.checked && deckSelect.value) ? PRESENTATION_ID : null,
           images,
         }),
       });
@@ -631,9 +633,19 @@
       const summary = result.results.map(r =>
         r.status === 'updated' ? `${r.channel}: ${r.cellsWritten} cells updated` : `${r.channel}: ${r.message}`
       ).join(' / ');
+
+      let deckSummary = '';
+      if (result.deckResult) {
+        const d = result.deckResult;
+        deckSummary = d.status === 'updated' ? ` · Deck: ${d.shapesChanged} box(es) updated`
+          : d.status === 'cloned_and_updated' ? ` · Deck: new slide cloned, ${d.shapesChanged} box(es) filled in`
+          : d.status === 'ambiguous' ? ` · Deck: ⚠ ${d.message}`
+          : d.status === 'no_change' ? ` · Deck: found the slide, nothing to change`
+          : ` · Deck: ⚠ ${d.message}`;
+      }
+
       document.getElementById('successSub').textContent =
-        (result.warnings?.length ? `⚠ ${result.warnings.join('; ')} — ` : '') + summary
-        + (willUpdateDeck ? ' (deck update not yet wired into this function)' : '');
+        (result.warnings?.length ? `⚠ ${result.warnings.join('; ')} — ` : '') + summary + deckSummary;
     } catch (err) {
       document.getElementById('successTitle').textContent = 'Something went wrong';
       document.getElementById('successSub').textContent = err.message;
