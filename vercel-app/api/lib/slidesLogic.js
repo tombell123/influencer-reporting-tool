@@ -39,18 +39,16 @@ function cleanLines(text) {
 // placeholder they used, so all of them need to be recognized.
 const NUMBER_TOKEN = /[\d,]+\.?\d*|[xX\-]/;
 
-/** Replaces the number/placeholder token that appears immediately
- * before a known caption string, keeping every other character
- * (whitespace, blank lines, everything) exactly as it was. Used for
- * the "bare number sits above its caption" boxes (Total Reach, Story
- * views, etc) where the number has no inline label of its own. */
+/** Replaces the number/placeholder token that appears before a known
+ * caption string, AND tightens the gap between them to a single line
+ * break -- the blank template has extra blank-line padding there
+ * (presumably meant to look OK when empty), which causes an oversized
+ * visual gap once a real number replaces the placeholder. */
 function replaceLeadingNumber(text, captionText, newValue) {
   const idx = text.indexOf(captionText);
   if (idx === -1) return text;
-  const before = text.slice(0, idx);
   const after = text.slice(idx);
-  const updatedBefore = before.replace(NUMBER_TOKEN, fmt(newValue));
-  return updatedBefore + after;
+  return `${fmt(newValue)}\n${after}`;
 }
 
 const KNOWN_LABELS = ['Views', 'Likes', 'Comments', 'Shares', 'Saves', 'Eng rate'];
