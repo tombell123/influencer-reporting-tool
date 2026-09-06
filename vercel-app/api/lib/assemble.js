@@ -48,4 +48,49 @@ function assembleSubmissions(pieces) {
   return out;
 }
 
-module.exports = { assembleSubmissions };
+/**
+ * Filters extracted pieces down to only what the person actually
+ * selected on the form (platform + content piece), so a mixed batch
+ * of screenshots never silently writes to a channel/row the person
+ * didn't ask for. Anything filtered out is reported in `dropped` so
+ * the caller can warn the person about it, rather than either
+ * silently processing it or silently discarding it.
+ *
+ * platform: 'IG' | 'TT'
+ * contentPiece: 'post1' | 'post2' | 'stories'  (only meaningful for IG)
+ */
+function filterPiecesBySelection(pieces, platform, contentPiece) {
+  let kept, droppedReason;
+
+  if (platform === 'TT') {
+    kept = pieces.filter(p => p.type === 'tiktok');
+    droppedReason = (p) => p.type === 'story_frame' ? 'Story screenshot' : p.type === 'reel' ? 'Reel screenshot' : `${p.type} screenshot`;
+  } else {
+    // IG: further split by content piece -- "stories" wants only
+    // story frames, "post1"/"post2" wants only the Reel
+    if (contentPiece === 'stories') {
+      kept = pieces.filter(p => p.type === 'story_frame');
+    } else {
+      kept = pieces.filter(p => p.type === 'reel');
+    }
+    droppedReason = (p) => p.type === 'tiktok' ? 'TikTok screenshot'
+      : p.type === 'story_frame' ? 'Story screenshot'
+      : p.type === 'reel' ? 'Reel screenshot' : `${p.type} screenshot`;
+  }
+
+  const dropped = pieces.filter(p => !kept.includes(p));
+  const warnings = [];
+  if (dropped.length) {
+    const counts = {};
+    dropped.forEach(p => { counts[droppedReason(p)] = (counts[droppedReason(p)] || 0) + 1; });
+    const summary = Object.entries(counts).map(([label, n]) => `${n} ${label}${n > 1 ? 's' : ''}`).join(', ');
+    warnings.push(
+      `Found ${summary} in this batch, but ${platform === 'TT' ? 'TikTok' : (contentPiece === 'stories' ? 'Instagram Stories' : 'Instagram ' + contentPiece)} was selected -- `
+      + `these were NOT processed. If they belong on the sheet too, submit them separately with the matching platform/content piece selected.`
+    );
+  }
+
+  return { kept, warnings };
+}
+
+module.exports = { assembleSubmissions, filterPiecesBySelection };
