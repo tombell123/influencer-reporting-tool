@@ -13,17 +13,17 @@ For each distinct frame, output:
 
 Use "Views" (total impressions) if shown; if only "Viewers" (unique people) is shown for that screenshot, use it as a fallback for "views" but prefer "Views" when both appear across the merged screenshots for that frame. "Likes" comes from the Interactions section.
 
-**2. Instagram Reel/Post insights** -- shows the post's image/video, caption, and stats: Views, Watch time, Likes, Comments, Shares/Reposts, Saves, Interactions, Profile activity, Audience (Men/Women %), sometimes a Facebook cross-post breakdown (ignore the Facebook-specific numbers). This is ONE piece regardless of how many screenshots show different scrolled sections.
+**2. Instagram Reel/Post insights** -- shows the post's image/video, caption, and stats: Views, Watch time, Likes, Comments, Shares/Reposts, Saves, Reach (sometimes labeled "Accounts reached"), Interactions, Profile activity, Audience (Men/Women %), sometimes a Facebook cross-post breakdown (ignore the Facebook-specific numbers). This is ONE piece regardless of how many screenshots show different scrolled sections.
 
 Output:
-{"type": "reel", "views": <int>, "likes": <int>, "comments": <int>, "shares": <int, default 0>, "saves": <int>}
+{"type": "reel", "views": <int>, "likes": <int>, "comments": <int>, "shares": <int, default 0>, "saves": <int>, "reach": <int, or null if not shown>}
 
 Likes sometimes appear in two places that can disagree slightly (a header/overview count vs. a detailed Engagement-tab count). When they disagree, prefer the more detailed/specific source, don't average or guess.
 
-**3. TikTok video analysis** -- a "Video analysis" or "TikTok Studio" screen: Video views, Total play time, Average watch time, Watched full video %, New followers, Likes, Comments, Shares, Saves, a retention-rate graph. One piece regardless of screenshot count.
+**3. TikTok video analysis** -- a "Video analysis" or "TikTok Studio" screen: Video views, Total play time, Average watch time, Watched full video %, New followers, Likes, Comments, Shares, Saves, Reach, a retention-rate graph. One piece regardless of screenshot count.
 
 Output:
-{"type": "tiktok", "views": <int>, "likes": <int>, "comments": <int>, "shares": <int, default 0>, "saves": <int, default 0>}
+{"type": "tiktok", "views": <int>, "likes": <int>, "comments": <int>, "shares": <int, default 0>, "saves": <int, default 0>, "reach": <int, or null if not shown>}
 
 ## Universal rules
 
