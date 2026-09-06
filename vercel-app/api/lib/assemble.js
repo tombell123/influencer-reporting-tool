@@ -16,6 +16,7 @@ function assembleIG(pieces) {
     const r = reels[0];
     sub.views = r.views; sub.likes = r.likes; sub.comments = r.comments;
     sub.shares = r.shares ?? 0; sub.saves = r.saves;
+    if (r.reach != null) sub.reach = r.reach;
   }
   if (frames.length) {
     sub.num_frames = frames.length;
@@ -33,10 +34,12 @@ function assembleTikTok(pieces) {
     throw new Error(`Got ${tt.length} TikTok screenshots in one batch -- expected 1.`);
   }
   const t = tt[0];
-  return {
+  const sub = {
     channel: 'TT', views: t.views, likes: t.likes, comments: t.comments,
     shares: t.shares ?? 0, saves: t.saves ?? 0,
   };
+  if (t.reach != null) sub.reach = t.reach;
+  return sub;
 }
 
 function assembleSubmissions(pieces) {
