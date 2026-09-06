@@ -51,7 +51,21 @@ module.exports = async (req, res) => {
         ],
       }],
     });
-    extraction = parseExtractionResponse(message.content[0].text);
+
+    const textBlock = message.content?.find(b => b.type === 'text');
+    if (!textBlock || typeof textBlock.text !== 'string') {
+      // Something came back, but not in the shape we expected --
+      // show exactly what Claude actually sent instead of guessing.
+      return res.status(502).json({
+        error: 'Extraction failed: response had no readable text content',
+        debug: {
+          stopReason: message.stop_reason,
+          contentTypes: message.content?.map(b => b.type),
+          fullContent: message.content,
+        },
+      });
+    }
+    extraction = parseExtractionResponse(textBlock.text);
   } catch (err) {
     // Temporary verbose error output for debugging -- shows exactly
     // what's failing and why, directly in the response, so we don't
