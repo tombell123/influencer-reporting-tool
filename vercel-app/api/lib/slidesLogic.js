@@ -182,14 +182,26 @@ function buildSlideUpdates(slide, submission, platform) {
       if (has('reach')) newText = replaceLeadingNumber(newText, 'Total Reach', submission.reach);
       if (has('organic_reach_pct')) newText = replacePercentBefore(newText, 'organic reach', submission.organic_reach_pct);
     } else if (caption === 'Total engagements') {
-      if (has('total_eng')) newText = replaceLeadingNumber(newText, 'Total engagements', submission.total_eng);
-      if (has('views')) newText = replaceLabeledValue(newText, 'Views', submission.views);
-      if (has('likes')) newText = replaceLabeledValue(newText, 'Likes', submission.likes);
-      if (has('comments')) newText = replaceLabeledValue(newText, 'Comments', submission.comments);
-      if (platform === 'TT' && has('shares')) newText = replaceLabeledValue(newText, 'Shares', submission.shares);
-      if (has('saves')) newText = replaceLabeledValue(newText, 'Saves', submission.saves);
-      if (has('eng_rate')) {
-        newText = newText.replace(/Eng rate:\s*(?:[\d.]+|x)?%?/i, `Eng rate: ${submission.eng_rate}%`);
+      // The labeled fields (Views/Likes/etc) are rebuilt compactly
+      // rather than preserving the original separator, because the
+      // blank template's spacing (extra blank lines, meant to look
+      // OK when empty) causes real multi-line data to overflow the
+      // box and spill into whatever sits below it on the slide.
+      if (has('views') || has('likes') || has('comments') || has('saves') || has('shares')) {
+        if (has('total_eng')) newText = replaceLeadingNumber(newText, 'Total engagements', submission.total_eng);
+        const idx = newText.indexOf('Total engagements');
+        if (idx !== -1) {
+          const before = newText.slice(0, idx + 'Total engagements'.length);
+          const fieldLines = [
+            `Views: ${has('views') ? fmt(submission.views) : 'x'}`,
+            `Likes: ${has('likes') ? fmt(submission.likes) : 'x'}`,
+            `Comments: ${has('comments') ? fmt(submission.comments) : 'x'}`,
+          ];
+          if (platform === 'TT') fieldLines.push(`Shares: ${has('shares') ? fmt(submission.shares) : 'x'}`);
+          fieldLines.push(`Saves: ${has('saves') ? fmt(submission.saves) : 'x'}`);
+          fieldLines.push(`Eng rate: ${has('eng_rate') ? submission.eng_rate : 'x'}%`);
+          newText = before + '\n' + fieldLines.join('\n');
+        }
       }
     } else if (caption === 'Story views') {
       if (has('first_story_views')) newText = replaceLeadingNumber(newText, 'Story views', submission.first_story_views);
