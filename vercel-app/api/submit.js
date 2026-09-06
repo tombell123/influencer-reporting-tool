@@ -182,7 +182,10 @@ module.exports = async (req, res) => {
 
     const auth = new google.auth.GoogleAuth({
       credentials: serviceAccountKey,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      scopes: [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/presentations',
+      ],
     });
     const client = await auth.getClient();
     const sheets = google.sheets({ version: 'v4', auth: client });
