@@ -237,6 +237,14 @@ module.exports = async (req, res) => {
       // came out of one batch, the deck side only ever expects one
       // platform/piece per submission anyway per the dropdown design).
       const primary = submissions[0];
+      // Deck's "Total engagements" box needs a combined figure the
+      // extraction pipeline never produces directly -- derive it the
+      // same way the Sheet's own Total column does (SUM of likes
+      // through saves), for internal consistency between the two.
+      if (primary.likes != null || primary.comments != null || primary.saves != null) {
+        primary.total_eng = (primary.likes || 0) + (primary.comments || 0)
+          + (primary.shares || 0) + (primary.saves || 0);
+      }
       // The form's dropdown speaks 'post1'/'post2'/'stories'; the deck
       // logic speaks 'reel'/'stories'/'tiktok'. Post 1 and Post 2 both
       // mean "the reel slide" -- the dropdown value only disambiguates
