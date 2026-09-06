@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Add to influencer report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #FFF8F2;
+    --card: #FFFFFF;
+    --coral: #D85A30;
+    --coral-dark: #A8431F;
+    --pink-tint: #FBEAF0;
+    --pink: #ED93B1;
+    --purple-tint: #EEEDFE;
+    --purple: #7F77DD;
+    --green-tint: #EAF3DE;
+    --green: #3B6D11;
+    --ink: #3A2A20;
+    --muted: #8A7A6E;
+    --border: #F0E4D8;
+    --radius-lg: 20px;
+    --radius-md: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--cream);
+    font-family: 'Inter', sans-serif;
+    color: var(--ink);
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+    min-height: 100vh;
+  }
+  .app { width: 100%; max-width: 460px; }
+  .brand {
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--coral);
+    margin: 0 0 6px;
+    letter-spacing: 0.2px;
+  }
+  h1 {
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 700;
+    font-size: 24px;
+    margin: 0 0 4px;
+  }
+  .sub {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 0 0 24px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: var(--radius-lg);
+    padding: 28px 24px;
+    box-shadow: 0 1px 2px rgba(58,42,32,0.04);
+  }
+  .field { margin-bottom: 18px; }
+  .field:last-child { margin-bottom: 0; }
+  label {
+    display: block;
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  select, input[type="text"], input[type="number"] {
+    width: 100%;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    padding: 11px 14px;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--border);
+    background: var(--cream);
+    color: var(--ink);
+    appearance: none;
+  }
+  select:focus, input:focus {
+    outline: none;
+    border-color: var(--pink);
+  }
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238A7A6E' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .newrow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--coral);
+  }
+  .newrow input { width: auto; }
+  #newInfluencerBox { display: none; margin-top: 8px; }
+  .dropzone {
+    border: 2px dashed var(--pink);
+    border-radius: var(--radius-md);
+    background: var(--pink-tint);
+    padding: 26px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .dropzone:hover, .dropzone.drag { background: #F8DCE7; }
+  .dropzone svg { display: block; margin: 0 auto 8px; color: var(--coral-dark); }
+  .dropzone p { margin: 0; font-size: 13px; color: var(--coral-dark); font-weight: 500; }
+  .dropzone .small { font-size: 11.5px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+  #fileInput { display: none; }
+  .filelist { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .filechip {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--cream); border-radius: 10px; padding: 7px 10px;
+    font-size: 12.5px;
+  }
+  .filechip .name { display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .filechip button {
+    border: none; background: none; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1;
+    padding: 2px 4px;
+  }
+  .submit-btn {
+    width: 100%;
+    margin-top: 22px;
+    background: var(--coral);
+    color: #FFF6F1;
+    border: none;
+    border-radius: 999px;
+    padding: 14px;
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.15s ease;
+  }
+  .submit-btn:hover { background: var(--coral-dark); }
+  .submit-btn:active { transform: scale(0.98); }
+  .submit-btn:disabled { background: #E8D9CC; color: #B7A896; cursor: not-allowed; }
+  .error {
+    font-size: 12px;
+    color: var(--coral-dark);
+    margin-top: 5px;
+    display: none;
+  }
+  .error.show { display: block; }
+
+  /* review state */
+  .review { display: none; }
+  .review.show { display: block; }
+  .form-state.hide { display: none; }
+  .found-banner {
+    background: var(--purple-tint);
+    color: #3C3489;
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .found-banner.new { background: var(--green-tint); color: var(--green); }
+  .review-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+  .review-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13.5px; padding: 9px 0; border-bottom: 1px solid var(--border);
+  }
+  .review-row:last-child { border-bottom: none; }
+  .review-row .k { color: var(--muted); }
+  .review-row .v { font-weight: 500; }
+  .review-actions { display: flex; gap: 10px; }
+  .review-actions button { flex: 1; }
+  .btn-ghost {
+    background: var(--cream);
+    color: var(--ink);
+    border: 2px solid var(--border);
+    border-radius: 999px;
+    padding: 12px;
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  /* success state */
+  .success { display: none; text-align: center; padding: 20px 0 4px; }
+  .success.show { display: block; }
+  .success-icon {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: var(--green-tint); color: var(--green);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px; font-size: 24px;
+  }
+  .success h2 { font-family: 'Quicksand', sans-serif; font-size: 18px; margin: 0 0 6px; }
+  .success p { font-size: 13.5px; color: var(--muted); margin: 0 0 20px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <p class="brand">Kids SS26 &middot; influencer reporting</p>
+  <h1>Add to report ✧</h1>
+  <p class="sub">Pick who this is for, drop in the screenshots, and we'll slot it into the right row.</p>
+  <button type="button" id="missingBtn" style="width:100%; margin-bottom:16px; background:var(--purple-tint); color:#3C3489; border:none; border-radius:14px; padding:11px; font-family:'Quicksand',sans-serif; font-weight:600; font-size:13.5px; cursor:pointer;">
+    ⚠ What's missing from the report?
+  </button>
+
+  <div class="card">
+
+    <!-- FORM STATE -->
+    <form id="submitForm" class="form-state">
+      <div class="field">
+        <label for="campaign">Campaign</label>
+        <select id="campaign"></select>
+      </div>
+
+      <div class="field">
+        <label for="project">Project</label>
+        <select id="project"></select>
+        <p class="hint">Which block within this campaign's tab.</p>
+      </div>
+
+      <div class="field">
+        <label for="influencer">Influencer</label>
+        <select id="influencer"></select>
+        <div id="newInfluencerBox">
+          <input type="text" id="newInfluencerName" placeholder="@handle">
+        </div>
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label for="platform">Platform</label>
+          <select id="platform">
+            <option value="IG">Instagram</option>
+            <option value="TT">TikTok</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="piece">Content piece</label>
+          <select id="piece">
+            <option value="post1">Post 1</option>
+            <option value="post2">Post 2</option>
+            <option value="stories">Stories</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0;">
+          <span>Also update the report deck</span>
+          <input type="checkbox" id="updateDeck" checked style="width:auto; accent-color: var(--coral);">
+        </label>
+      </div>
+      <div class="field" id="deckPickerBox">
+        <label for="deckSelect">Report deck</label>
+        <select id="deckSelect"></select>
+        <p class="hint">Only decks matching this campaign are shown.</p>
+      </div>
+
+      <div class="field">
+        <label for="followers">Followers</label>
+        <input type="number" id="followers" placeholder="e.g. 253000" min="0">
+        <p class="hint">Current follower count at time of posting.</p>
+      </div>
+
+      <div class="field">
+        <label>Screenshots</label>
+        <div class="dropzone" id="dropzone">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
+          <p>Drop screenshots here, or tap to browse</p>
+          <p class="small">Stories, Reel/Post insights, or TikTok analysis</p>
+        </div>
+        <input type="file" id="fileInput" multiple accept="image/*">
+        <div class="filelist" id="fileList"></div>
+        <p class="error" id="fileError">Add at least one screenshot first.</p>
+      </div>
+
+      <button type="submit" class="submit-btn" id="reviewBtn">Review &amp; submit</button>
+    </form>
+
+    <!-- REVIEW STATE -->
+    <div class="review" id="reviewState">
+      <div class="found-banner" id="foundBanner"></div>
+      <div class="found-banner" id="foundBannerDeck" style="display:none;"></div>
+      <div class="review-grid" id="reviewGrid"></div>
+      <div class="review-actions">
+        <button type="button" class="btn-ghost" id="backBtn">Back</button>
+        <button type="button" class="submit-btn" id="confirmBtn">Confirm &amp; write in</button>
+      </div>
+    </div>
+
+    <!-- SUCCESS STATE -->
+    <div class="success" id="successState">
+      <div class="success-icon">✓</div>
+      <h2 id="successTitle">Added to the sheet</h2>
+      <p id="successSub">The row's been updated — formulas untouched.</p>
+      <button type="button" class="btn-ghost" id="anotherBtn" style="width:100%;">Submit another</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ---- Mock data layer -----------------------------------------------
+  // In production these three lookups (campaigns, influencers-per-campaign,
+  // whether a row already exists) come from the Sheets connector -- this
+  // form is built so swapping the mock functions below for real API calls
+  // is the only change needed.
+  // Campaign = the TAB name. Project = the block WITHIN that tab
+  // (what actually appears in column C, matched against rows). One
+  // tab can hold several projects -- e.g. "Kids SS26" held "Back To
+  // School" plus other blocks in the real sheet ("Spring Bags",
+  // "Ambassador", "Summer Bags" were seen in another tab).
+  const MOCK_CAMPAIGNS = [
+    "Kids SS26", "Cath Kidston SS26", "Home SS26", "Home AW25",
+    "Womens SS26", "Mens 26", "MADE SS26"
+  ];
+  const MOCK_PROJECTS_BY_CAMPAIGN = {
+    "Kids SS26": ["Back To School"],
+    "Cath Kidston SS26": ["Ambassador", "Product Launch"],
+  };
+  // influencer lists are scoped to a PROJECT (the actual matching
+  // key), not the wider tab
+  const MOCK_INFLUENCERS = {
+    "Back To School": ["@chrisgmcrawford", "@miyakalith", "@shellandthelittlies",
+      "@la_sidhu", "@franki.dammone", "@charlielaunder", "@katebowbow", "@basma_k"],
+    "Ambassador": ["@sarahlouiseblythe", "@lissyroddyy"],
+    "Product Launch": [],
+  };
+  // returns { exists: bool } -- simulates checking for an existing row
+  function checkExistingRow(project, influencer, platform) {
+    const list = MOCK_INFLUENCERS[project] || [];
+    return { exists: list.includes(influencer) };
+  }
+
+  // ---- Deck mock data + logic (mirrors the proven find_slides/find_template rules) ----
+  // decks are also keyed by PROJECT (the real test deck is named after
+  // the project, "Back to School...", not the tab "Kids SS26")
+  const MOCK_DECKS = {
+    "Back To School": ["Back to School - House x NEXT Influencer Report"],
+  };
+  // real slides from the actual test deck, modeled the same way as the
+  // proven Python logic (influencer + platform + piece)
+  const MOCK_DECK_SLIDES = {
+    "Back to School - House x NEXT Influencer Report": [
+      { influencer: "@la_sidhu", platform: "IG", piece: "reel" },
+      { influencer: "@la_sidhu", platform: "IG", piece: "stories" },
+      { influencer: "@la_sidhu", platform: "TT", piece: "tiktok" },
+      { influencer: "@chrisgmcrawford", platform: "IG", piece: "reel" },
+      { influencer: "@chrisgmcrawford", platform: "IG", piece: "stories" },
+      { influencer: "@chrisgmcrawford", platform: "TT", piece: "tiktok" },
+    ],
+  };
+  // Post 1/Post 2 both map to the deck's single "reel" piece type --
+  // the dropdown value only disambiguates which one to write into
+  // when a collision exists; it's not a separate slide category.
+  function mapPieceForDeck(formPiece, platform) {
+    if (platform === 'TT') return 'tiktok';
+    if (formPiece === 'stories') return 'stories';
+    return 'reel';
+  }
+  function checkExistingSlide(deckName, influencer, platform, formPiece) {
+    const piece = mapPieceForDeck(formPiece, platform);
+    const slides = MOCK_DECK_SLIDES[deckName] || [];
+    const exists = slides.some(s => s.influencer === influencer
+      && s.platform === platform && s.piece === piece);
+    return { exists, piece };
+  }
+
+  // ---- Populate campaign -> project -> influencer/deck dropdowns -----
+  const campaignSel = document.getElementById('campaign');
+  const projectSel = document.getElementById('project');
+  const influencerSel = document.getElementById('influencer');
+  const newBox = document.getElementById('newInfluencerBox');
+  const newInput = document.getElementById('newInfluencerName');
+
+  MOCK_CAMPAIGNS.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c; o.textContent = c;
+    campaignSel.appendChild(o);
+  });
+
+  function populateProjects() {
+    projectSel.innerHTML = '';
+    const list = MOCK_PROJECTS_BY_CAMPAIGN[campaignSel.value] || [];
+    if (list.length === 0) {
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = 'No projects found on this tab';
+      projectSel.appendChild(o);
+      return;
+    }
+    list.forEach(name => {
+      const o = document.createElement('option');
+      o.value = name; o.textContent = name;
+      projectSel.appendChild(o);
+    });
+  }
+
+  function populateInfluencers() {
+    influencerSel.innerHTML = '';
+    const list = MOCK_INFLUENCERS[projectSel.value] || [];
+    list.forEach(name => {
+      const o = document.createElement('option');
+      o.value = name; o.textContent = name;
+      influencerSel.appendChild(o);
+    });
+    const addNew = document.createElement('option');
+    addNew.value = '__new__';
+    addNew.textContent = '+ Add new influencer';
+    influencerSel.appendChild(addNew);
+    toggleNewBox();
+  }
+  function toggleNewBox() {
+    newBox.style.display = influencerSel.value === '__new__' ? 'block' : 'none';
+  }
+  campaignSel.addEventListener('change', () => {
+    populateProjects();
+    populateInfluencers();
+    populateDecks();
+  });
+  projectSel.addEventListener('change', () => {
+    populateInfluencers();
+    populateDecks();
+  });
+  influencerSel.addEventListener('change', toggleNewBox);
+
+  const updateDeckToggle = document.getElementById('updateDeck');
+  const deckPickerBox = document.getElementById('deckPickerBox');
+  const deckSelect = document.getElementById('deckSelect');
+
+  function populateDecks() {
+    deckSelect.innerHTML = '';
+    const list = MOCK_DECKS[projectSel.value] || [];
+    if (list.length === 0) {
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = 'No deck found for this project';
+      deckSelect.appendChild(o);
+      return;
+    }
+    list.forEach(name => {
+      const o = document.createElement('option');
+      o.value = name; o.textContent = name;
+      deckSelect.appendChild(o);
+    });
+  }
+  function toggleDeckPicker() {
+    deckPickerBox.style.display = updateDeckToggle.checked ? 'block' : 'none';
+  }
+  updateDeckToggle.addEventListener('change', toggleDeckPicker);
+
+  populateProjects();
+  populateInfluencers();
+  populateDecks();
+  toggleDeckPicker();
+
+  // ---- File upload -----------------------------------------------------
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const fileList = document.getElementById('fileList');
+  const fileError = document.getElementById('fileError');
+  let files = [];
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    addFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', () => addFiles(fileInput.files));
+
+  function addFiles(newFiles) {
+    Array.from(newFiles).forEach(f => files.push(f));
+    renderFiles();
+  }
+  function removeFile(i) {
+    files.splice(i, 1);
+    renderFiles();
+  }
+  function renderFiles() {
+    fileList.innerHTML = '';
+    files.forEach((f, i) => {
+      const chip = document.createElement('div');
+      chip.className = 'filechip';
+      chip.innerHTML = `<span class="name">📎 ${f.name}</span>`;
+      const btn = document.createElement('button');
+      btn.textContent = '✕';
+      btn.type = 'button';
+      btn.onclick = () => removeFile(i);
+      chip.appendChild(btn);
+      fileList.appendChild(chip);
+    });
+    if (files.length) fileError.classList.remove('show');
+  }
+
+  // ---- Form -> review -----------------------------------------------
+  const formEl = document.getElementById('submitForm');
+  const reviewState = document.getElementById('reviewState');
+  const successState = document.getElementById('successState');
+  const foundBanner = document.getElementById('foundBanner');
+  const reviewGrid = document.getElementById('reviewGrid');
+
+  const PIECE_LABELS = { post1: 'Post 1', post2: 'Post 2', stories: 'Stories' };
+  const PLATFORM_LABELS = { IG: 'Instagram', TT: 'TikTok' };
+
+  formEl.addEventListener('submit', e => {
+    e.preventDefault();
+    if (files.length === 0) {
+      fileError.classList.add('show');
+      return;
+    }
+
+    const campaign = campaignSel.value;
+    const project = projectSel.value;
+    const platform = document.getElementById('platform').value;
+    const piece = document.getElementById('piece').value;
+    const followers = document.getElementById('followers').value;
+    const influencer = influencerSel.value === '__new__'
+      ? (newInput.value.trim() || '(name not entered)')
+      : influencerSel.value;
+
+    const { exists } = checkExistingRow(project, influencer, platform);
+
+    foundBanner.className = 'found-banner' + (exists ? '' : ' new');
+    foundBanner.innerHTML = exists
+      ? `<span>🔎</span><span>Found an existing ${PLATFORM_LABELS[platform]} row for <strong>${influencer}</strong> in <strong>${project}</strong> — new numbers will be added on top.</span>`
+      : `<span>✨</span><span>No existing row for <strong>${influencer}</strong> yet — a new one will be created in <strong>${project}</strong>.</span>`;
+
+    const willUpdateDeck = updateDeckToggle.checked;
+    const deckName = deckSelect.value;
+    const foundBannerDeck = document.getElementById('foundBannerDeck');
+
+    if (willUpdateDeck && deckName) {
+      const { exists: slideExists } = checkExistingSlide(deckName, influencer, platform, piece);
+      foundBannerDeck.style.display = 'flex';
+      foundBannerDeck.className = 'found-banner' + (slideExists ? '' : ' new');
+      foundBannerDeck.innerHTML = slideExists
+        ? `<span>🔎</span><span>Found <strong>${influencer}</strong>'s ${PIECE_LABELS[piece]} slide in <strong>${deckName}</strong> — numbers will be updated on it.</span>`
+        : `<span>✨</span><span>No slide yet for <strong>${influencer}</strong> — a new one will be cloned from the template in <strong>${deckName}</strong>.</span>`;
+    } else {
+      foundBannerDeck.style.display = 'none';
+    }
+
+    reviewGrid.innerHTML = '';
+    [
+      ['Campaign', campaign],
+      ['Project', project],
+      ['Influencer', influencer],
+      ['Platform', PLATFORM_LABELS[platform]],
+      ['Content piece', PIECE_LABELS[piece]],
+      ['Followers', followers ? Number(followers).toLocaleString() : '—'],
+      ['Screenshots', `${files.length} file${files.length === 1 ? '' : 's'}`],
+      ...(willUpdateDeck ? [['Report deck', deckName || '—']] : []),
+    ].forEach(([k, v]) => {
+      const row = document.createElement('div');
+      row.className = 'review-row';
+      row.innerHTML = `<span class="k">${k}</span><span class="v">${v}</span>`;
+      reviewGrid.appendChild(row);
+    });
+
+    formEl.classList.add('hide');
+    reviewState.classList.add('show');
+  });
+
+  document.getElementById('backBtn').addEventListener('click', () => {
+    reviewState.classList.remove('show');
+    formEl.classList.remove('hide');
+  });
+
+  // Hardcoded for this test demo -- in a real multi-campaign version
+  // this would come from the campaign dropdown's own config, same as
+  // MOCK_DECKS above.
+  const SPREADSHEET_ID = '1O-D7ZlRL_Rv-bdBZodX6W2iuBhkbt4EPyZqdM3Fhobo';
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]); // strip data: prefix
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  document.getElementById('confirmBtn').addEventListener('click', async () => {
+    const willUpdateDeck = updateDeckToggle.checked && deckSelect.value;
+    const confirmBtn = document.getElementById('confirmBtn');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Writing in...';
+
+    try {
+      const images = await Promise.all(files.map(fileToBase64));
+      const platform = document.getElementById('platform').value;
+      const followers = document.getElementById('followers').value;
+      const influencer = influencerSel.value === '__new__'
+        ? newInput.value.trim() : influencerSel.value;
+
+      const response = await fetch('/api/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign: campaignSel.value,
+          project: projectSel.value,
+          influencer, platform,
+          followers: followers ? Number(followers) : null,
+          spreadsheetId: SPREADSHEET_ID,
+          images,
+        }),
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Something went wrong writing to the sheet.');
+      }
+
+      const summary = result.results.map(r =>
+        r.status === 'updated' ? `${r.channel}: ${r.cellsWritten} cells updated` : `${r.channel}: ${r.message}`
+      ).join(' / ');
+      document.getElementById('successSub').textContent =
+        (result.warnings?.length ? `⚠ ${result.warnings.join('; ')} — ` : '') + summary
+        + (willUpdateDeck ? ' (deck update not yet wired into this function)' : '');
+    } catch (err) {
+      document.getElementById('successTitle').textContent = 'Something went wrong';
+      document.getElementById('successSub').textContent = err.message;
+    }
+
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'Confirm & write in';
+    reviewState.classList.remove('show');
+    successState.classList.add('show');
+  });
+
+  document.getElementById('anotherBtn').addEventListener('click', () => {
+    successState.classList.remove('show');
+    formEl.classList.remove('hide');
+    files = [];
+    renderFiles();
+    formEl.reset();
+    populateProjects();
+    populateInfluencers();
+    populateDecks();
+    toggleDeckPicker();
+  });
+  // ---- 'What's missing' report (mirrors the proven Python logic) ----
+  const METRICS_BY_PIECE = {
+    reel: { followers: ['followers'], reach: ['reach'], 'organic reach': ['reach', 'followers'],
+            views: ['views'], likes: ['likes'], comments: ['comments'], saves: ['saves'],
+            'engagement rate': ['likes', 'comments', 'saves', 'reach'] },
+    stories: { followers: ['followers'], 'story views': ['story_views'], 'story likes': ['story_likes'],
+               'sticker taps': ['sticker_taps'], 'link clicks': ['link_clicks'] },
+    tiktok: { followers: ['followers'], reach: ['reach'], 'organic reach': ['reach', 'followers'],
+              views: ['views'], likes: ['likes'], comments: ['comments'], shares: ['shares'],
+              saves: ['saves'], 'engagement rate': ['likes', 'comments', 'shares', 'saves', 'reach'] },
+  };
+  const MISSING_MARKERS = new Set([undefined, null, '', '-', 'x', 'X']);
+  const isMissing = v => MISSING_MARKERS.has(v);
+
+  // mock rows standing in for a live pull of the campaign's actual sheet/deck
+  // data -- same real gaps as the uploaded test deck, so this proves the
+  // same logic already tested in Python
+  // Keyed by CAMPAIGN (tab) not project -- the missing-report scans the
+  // whole tab across every project block on it, unlike row-matching
+  // above which needs to know the specific project.
+  const MOCK_ROWS_BY_TAB = {
+    "Kids SS26": [
+      { influencer: '@franki.dammone', piece: 'tiktok', fields: {
+          followers: '-', reach: '-', views: null, likes: null, comments: null, shares: 0, saves: null } },
+      { influencer: '@shellandthelittlies', piece: 'tiktok', fields: {
+          followers: 474, reach: '-', views: 1913, likes: 9, comments: 1, shares: 0, saves: 2 } },
+      { influencer: '@charlielaunder', piece: 'stories', fields: {
+          followers: '143k', story_views: 'x', story_likes: 'x', sticker_taps: 'x', link_clicks: 'x' } },
+      { influencer: '@charlielaunder', piece: 'tiktok', fields: {
+          followers: 'xK', reach: '-', views: 'x', likes: 'x', comments: 'x', shares: 'x', saves: 'x' } },
+      { influencer: '@katebowbow', piece: 'stories', fields: {
+          followers: '143k', story_views: 10407, story_likes: '-', sticker_taps: 2, link_clicks: 157 } },
+      { influencer: '@la_sidhu', piece: 'reel', fields: {
+          followers: 83000, reach: 4762, views: 8367, likes: 256, comments: 108, saves: 6 } },
+    ],
+  };
+  const PIECE_REPORT_LABELS = { reel: 'Instagram', stories: 'Instagram Stories', tiktok: 'TikTok' };
+
+  function buildMissingReport(rows) {
+    const report = {};
+    rows.forEach(row => {
+      const metrics = METRICS_BY_PIECE[row.piece];
+      const missing = Object.entries(metrics)
+        .filter(([, needs]) => needs.some(f => isMissing(row.fields[f])))
+        .map(([label]) => label);
+      if (missing.length) {
+        report[row.influencer] = report[row.influencer] || {};
+        report[row.influencer][row.piece] = missing;
+      }
+    });
+    return report;
+  }
+
+  function formatMissingReport(report) {
+    const names = Object.keys(report);
+    if (names.length === 0) return "Nothing missing -- every metric is filled in.";
+    const lines = [];
+    names.forEach(name => {
+      lines.push(name);
+      Object.entries(report[name]).forEach(([piece, missing]) => {
+        lines.push(`  ${PIECE_REPORT_LABELS[piece]}: missing ${missing.join(', ')}`);
+      });
+      lines.push('');
+    });
+    return lines.join('\n').trim();
+  }
+
+  document.getElementById('missingBtn').addEventListener('click', () => {
+    const rows = MOCK_ROWS_BY_TAB[campaignSel.value] || [];
+    const text = formatMissingReport(buildMissingReport(rows));
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${campaignSel.value.replace(/\s+/g, '_')}_missing.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+</script>
+</body>
+</html>
