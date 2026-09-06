@@ -13,32 +13,78 @@
 // for old values -- this sidesteps any risk of accidentally matching
 // the wrong number elsewhere on the slide.
 
-// Known caption -> how to rebuild that shape's full text from a
-// submission's values. Each shape is presumed to hold exactly this
-// multi-line pattern (confirmed from the real test deck's structure).
-const SHAPE_TEMPLATES = {
-  'Total Reach': (v) =>
-    `${fmt(v.reach)}\nTotal Reach\n${v.organic_reach_pct != null ? v.organic_reach_pct + '%' : 'x%'} organic reach`,
-
-  'Total engagements (IG)': (v) =>
-    `${fmt(v.total_eng)}\nTotal engagements\nViews: ${fmt(v.views)}\nLikes: ${fmt(v.likes)}\n`
-    + `Comments: ${fmt(v.comments)}\nSaves: ${fmt(v.saves)}\nEng rate: ${v.eng_rate != null ? v.eng_rate + '%' : 'x%'}`,
-
-  'Total engagements (TT)': (v) =>
-    `${fmt(v.total_eng)}\nTotal engagements\nViews: ${fmt(v.views)}\nLikes: ${fmt(v.likes)}\n`
-    + `Comments: ${fmt(v.comments)}\nShares: ${fmt(v.shares)}\nSaves: ${fmt(v.saves)}\n`
-    + `Eng rate: ${v.eng_rate != null ? v.eng_rate + '%' : 'x%'}`,
-
-  'Story views': (v) => `${fmt(v.first_story_views)}\nStory views`,
-  'Total link clicks': (v) => `${fmt(v.link_clicks)}\nTotal link clicks`,
-  'Total likes': (v) => `${fmt(v.total_likes)}\nTotal likes`,
-  // Sticker taps intentionally excluded -- it includes the @handle
-  // sub-line which this tool has no data for and shouldn't touch.
-};
+// Known caption text -> which substitutions to apply within that
+// shape, using the targeted find-and-replace primitives above rather
+// than rebuilding the shape's text from scratch. This is robust to
+// whatever mix of blank lines / soft line breaks the real slide
+// actually uses, since only the specific value tokens are touched.
 
 function fmt(n) {
   if (n == null) return 'x';
   return n.toLocaleString('en-US');
+}
+
+/** Splits a shape's text into meaningful (non-blank) lines, tolerant
+ * of the real API's quirks: extra blank paragraph lines, and vertical
+ * tab characters (\v) used for soft line breaks within one paragraph,
+ * both of which showed up in the real deck but not in any reasonable
+ * hand-written assumption of the structure. */
+function cleanLines(text) {
+  return text.split(/[\n\v]+/).map(s => s.trim()).filter(Boolean);
+}
+
+// Matches an existing number ("4,762"), a decimal ("6.5"), or any of
+// the blank-placeholder conventions actually seen on the real deck
+// ("-", "x", "X") -- the real slides weren't consistent about which
+// placeholder they used, so all of them need to be recognized.
+const NUMBER_TOKEN = /[\d,]+\.?\d*|[xX\-]/;
+
+/** Replaces the number/placeholder token that appears immediately
+ * before a known caption string, keeping every other character
+ * (whitespace, blank lines, everything) exactly as it was. Used for
+ * the "bare number sits above its caption" boxes (Total Reach, Story
+ * views, etc) where the number has no inline label of its own. */
+function replaceLeadingNumber(text, captionText, newValue) {
+  const idx = text.indexOf(captionText);
+  if (idx === -1) return text;
+  const before = text.slice(0, idx);
+  const after = text.slice(idx);
+  const updatedBefore = before.replace(NUMBER_TOKEN, fmt(newValue));
+  return updatedBefore + after;
+}
+
+const KNOWN_LABELS = ['Views', 'Likes', 'Comments', 'Shares', 'Saves', 'Eng rate'];
+
+/** Replaces the value that follows "Label:" up to the next known
+ * label (or end of string), while preserving whatever separator
+ * (space, blank lines, vertical tabs) originally sat between this
+ * field and the next one -- the real deck isn't consistent about
+ * which separator it uses, and naively consuming it with \s* in the
+ * match causes the new value to land in the wrong place, merged
+ * against the next label with no space. */
+function replaceLabeledValue(text, label, newValue, suffix = '') {
+  const stopWords = KNOWN_LABELS.filter(l => l !== label).map(l => l + ':').join('|');
+  const re = new RegExp(`(${label}:)([\\s\\S]*?)(?=${stopWords}|$)`, 'i');
+  const m = text.match(re);
+  if (!m) return text;
+  const [fullMatch, labelPart, restZone] = m;
+  const trailingSeparator = (restZone.match(/\s*$/) || [''])[0];
+  const replacement = `${labelPart} ${fmt(newValue)}${suffix}${trailingSeparator}`;
+  return text.slice(0, m.index) + replacement + text.slice(m.index + fullMatch.length);
+}
+
+/** Replaces the percentage figure that appears right before a known
+ * trailing phrase, e.g. "x% organic reach" -> "6% organic reach", or
+ * even a bare "% organic reach" with nothing before the % at all
+ * (seen on the real deck for a never-filled-in box). */
+function replacePercentBefore(text, phrase, newValue) {
+  const idx = text.indexOf(phrase);
+  if (idx === -1) return text;
+  const before = text.slice(0, idx);
+  const after = text.slice(idx);
+  const pct = newValue != null ? `${newValue}%` : 'x%';
+  const updatedBefore = before.replace(/([\d.]+|[xX\-])?%/, pct);
+  return updatedBefore + after;
 }
 
 /** Flattens a Slides API shape's text into one plain string, joining
@@ -112,28 +158,49 @@ function findTemplate(classifiedSlides, piece) {
 }
 
 /** Given a found slide and a submission, returns the list of
- * {objectId, deleteText: true, insertText: newText} operations needed
- * -- one per recognized stat-box shape whose caption matched a known
- * template. Shapes with no recognized caption (title, images, captions
- * we deliberately don't touch) are left completely alone. */
+ * {objectId, oldText, newText} updates needed -- one per recognized
+ * stat-box shape. Shapes with no recognized caption (title, image,
+ * captions we deliberately don't touch like sticker taps/revenue) are
+ * left completely alone. Uses targeted substitution (see primitives
+ * above) rather than rebuilding shape text from scratch, so it
+ * survives whatever blank-line/formatting quirks the real slide has. */
 function buildSlideUpdates(slide, submission, platform) {
-  const engagementsKey = platform === 'TT' ? 'Total engagements (TT)' : 'Total engagements (IG)';
   const updates = [];
+  const has = (field) => submission[field] != null;
 
   for (const shape of slide.shapes) {
-    const firstLine = shape.text.split('\n')[0];
-    const caption = shape.text.split('\n')[1]; // the line naming what this box is
+    const lines = cleanLines(shape.text);
+    const caption = lines[1]; // number/value is lines[0], caption is lines[1] once blanks are stripped
+    let newText = shape.text;
 
-    let templateKey = null;
-    if (caption === 'Total Reach') templateKey = 'Total Reach';
-    else if (caption === 'Total engagements') templateKey = engagementsKey;
-    else if (caption === 'Story views') templateKey = 'Story views';
-    else if (caption === 'Total link clicks') templateKey = 'Total link clicks';
-    else if (caption === 'Total likes') templateKey = 'Total likes';
+    // Guard every substitution on actually having a new value for it
+    // -- if we don't have new data for a field (e.g. Reach, which
+    // nothing in this pipeline currently extracts), leave whatever is
+    // already on the slide completely untouched rather than blanking
+    // it with a placeholder.
+    if (caption === 'Total Reach') {
+      if (has('reach')) newText = replaceLeadingNumber(newText, 'Total Reach', submission.reach);
+      if (has('organic_reach_pct')) newText = replacePercentBefore(newText, 'organic reach', submission.organic_reach_pct);
+    } else if (caption === 'Total engagements') {
+      if (has('total_eng')) newText = replaceLeadingNumber(newText, 'Total engagements', submission.total_eng);
+      if (has('views')) newText = replaceLabeledValue(newText, 'Views', submission.views);
+      if (has('likes')) newText = replaceLabeledValue(newText, 'Likes', submission.likes);
+      if (has('comments')) newText = replaceLabeledValue(newText, 'Comments', submission.comments);
+      if (platform === 'TT' && has('shares')) newText = replaceLabeledValue(newText, 'Shares', submission.shares);
+      if (has('saves')) newText = replaceLabeledValue(newText, 'Saves', submission.saves);
+      if (has('eng_rate')) {
+        newText = newText.replace(/Eng rate:\s*(?:[\d.]+|x)?%?/i, `Eng rate: ${submission.eng_rate}%`);
+      }
+    } else if (caption === 'Story views') {
+      if (has('first_story_views')) newText = replaceLeadingNumber(newText, 'Story views', submission.first_story_views);
+    } else if (caption === 'Total link clicks') {
+      if (has('link_clicks')) newText = replaceLeadingNumber(newText, 'Total link clicks', submission.link_clicks);
+    } else if (caption === 'Total likes') {
+      if (has('total_likes')) newText = replaceLeadingNumber(newText, 'Total likes', submission.total_likes);
+    } else {
+      continue; // not a shape we know how to update -- leave it alone
+    }
 
-    if (!templateKey) continue; // not a shape we know how to update -- leave it alone
-
-    const newText = SHAPE_TEMPLATES[templateKey](submission);
     if (newText !== shape.text) {
       updates.push({ objectId: shape.objectId, oldText: shape.text, newText });
     }
