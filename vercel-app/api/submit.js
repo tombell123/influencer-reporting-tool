@@ -9,7 +9,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { google } = require('googleapis');
 const { findExistingRow, buildAdditiveUpdate } = require('./lib/sheetLogic');
 const { EXTRACTION_SYSTEM_PROMPT, parseExtractionResponse } = require('./lib/extraction');
-const { assembleSubmissions } = require('./lib/assemble');
+const { assembleSubmissions, filterPiecesBySelection } = require('./lib/assemble');
 
 async function getSheetsClient() {
   const key = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { campaign, influencer, platform, followers, spreadsheetId, images, project, tabName } = req.body || {};
+  const { campaign, influencer, platform, followers, spreadsheetId, images, project, tabName, contentPiece } = req.body || {};
   if (!campaign || !project || !influencer || !platform || !spreadsheetId || !images?.length) {
     return res.status(400).json({ error: 'Missing required fields (campaign and project are both required)' });
   }
@@ -53,12 +53,39 @@ module.exports = async (req, res) => {
     });
     extraction = parseExtractionResponse(message.content[0].text);
   } catch (err) {
-    return res.status(502).json({ error: `Extraction failed: ${err.message}` });
+    // Temporary verbose error output for debugging -- shows exactly
+    // what's failing and why, directly in the response, so we don't
+    // need to dig through Vercel's log viewer.
+    return res.status(502).json({
+      error: `Extraction failed: ${err.message}`,
+      debug: {
+        name: err.name,
+        message: err.message,
+        cause: err.cause ? String(err.cause) : null,
+        status: err.status ?? null,
+        stack: err.stack ? err.stack.split('\n').slice(0, 6) : null,
+        hasApiKey: !!process.env.ANTHROPIC_API_KEY,
+        apiKeyPrefix: process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.slice(0, 7) : null,
+      },
+    });
   }
 
-  const { pieces, warnings } = extraction;
+  const { pieces: rawPieces, warnings: extractionWarnings } = extraction;
+  if (rawPieces.length === 0) {
+    return res.status(422).json({ error: 'No readable data found in screenshots', warnings: extractionWarnings });
+  }
+
+  // Only process what matches what was actually selected on the form
+  // -- a mixed batch (IG + TikTok + Stories all uploaded together)
+  // must not silently write to a channel/row the person didn't select.
+  const { kept: pieces, warnings: filterWarnings } = filterPiecesBySelection(rawPieces, platform, contentPiece);
+  const warnings = [...extractionWarnings, ...filterWarnings];
+
   if (pieces.length === 0) {
-    return res.status(422).json({ error: 'No readable data found in screenshots', warnings });
+    return res.status(422).json({
+      error: `None of the uploaded screenshots matched the selected platform/content piece.`,
+      warnings,
+    });
   }
 
   const submissions = assembleSubmissions(pieces);
