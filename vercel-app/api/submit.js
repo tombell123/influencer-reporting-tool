@@ -245,6 +245,15 @@ module.exports = async (req, res) => {
         primary.total_eng = (primary.likes || 0) + (primary.comments || 0)
           + (primary.shares || 0) + (primary.saves || 0);
       }
+      // Only derivable once we actually have a reach figure -- not
+      // every screenshot type shows one, so this stays unset (and the
+      // deck correctly leaves those boxes untouched) otherwise.
+      if (primary.reach != null && primary.followers != null && primary.followers > 0) {
+        primary.organic_reach_pct = Math.round((primary.reach / primary.followers) * 100);
+      }
+      if (primary.total_eng != null && primary.reach != null && primary.reach > 0) {
+        primary.eng_rate = Math.round((primary.total_eng / primary.reach) * 100);
+      }
       // The form's dropdown speaks 'post1'/'post2'/'stories'; the deck
       // logic speaks 'reel'/'stories'/'tiktok'. Post 1 and Post 2 both
       // mean "the reel slide" -- the dropdown value only disambiguates
