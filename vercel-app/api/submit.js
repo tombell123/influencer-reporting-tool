@@ -10,7 +10,7 @@ const { google } = require('googleapis');
 const { findExistingRow, buildAdditiveUpdate } = require('./lib/sheetLogic');
 const { EXTRACTION_SYSTEM_PROMPT, parseExtractionResponse } = require('./lib/extraction');
 const { assembleSubmissions, filterPiecesBySelection } = require('./lib/assemble');
-const { classifyPresentation, findSlides, findTemplate, buildSlideUpdates, buildTitleText } = require('./lib/slidesLogic');
+const { classifyPresentation, findSlides, findTemplate, buildSlideUpdates, buildTitleText, buildStyleRequests } = require('./lib/slidesLogic');
 
 /** Updates an EXISTING slide's stat-box shapes in place, or clones a
  * named template for a brand-new influencer. Returns a short status
@@ -39,6 +39,7 @@ async function updateDeck(slidesClient, presentationId, influencer, platform, pi
     const requests = updates.flatMap(u => [
       { deleteText: { objectId: u.objectId, textRange: { type: 'ALL' } } },
       { insertText: { objectId: u.objectId, text: u.newText, insertionIndex: 0 } },
+      ...buildStyleRequests(u.objectId, u.newText, u.caption),
     ]);
     await slidesClient.presentations.batchUpdate({ presentationId, requestBody: { requests } });
     return { status: 'updated', shapesChanged: updates.length };
@@ -92,6 +93,7 @@ async function updateDeck(slidesClient, presentationId, influencer, platform, pi
   updates.forEach(u => requests.push(
     { deleteText: { objectId: u.objectId, textRange: { type: 'ALL' } } },
     { insertText: { objectId: u.objectId, text: u.newText, insertionIndex: 0 } },
+    ...buildStyleRequests(u.objectId, u.newText, u.caption),
   ));
 
   if (requests.length) {
