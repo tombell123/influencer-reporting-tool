@@ -45,61 +45,22 @@ async function updateDeck(slidesClient, presentationId, influencer, platform, pi
     return { status: 'updated', shapesChanged: updates.length };
   }
 
-  // No match -- clone the template. This is the riskier path (it
-  // changes deck structure, not just text) so it only does the clone
-  // itself; filling in the new slide's numbers is a fast follow-up
-  // update using the exact same buildSlideUpdates logic once the
-  // clone's new objectId is known.
-  let template;
-  try {
-    template = findTemplate(classified, piece);
-  } catch (err) {
-    return { status: 'error', message: err.message };
-  }
-
-  const newSlideId = `slide_${Date.now()}`;
-  await slidesClient.presentations.batchUpdate({
-    presentationId,
-    requestBody: { requests: [{ duplicateObject: { objectId: template.objectId, objectIds: { [template.objectId]: newSlideId } } }] },
-  });
-
-  // Re-fetch to get the clone's actual shape objectIds (duplicateObject
-  // maps the page id but not each child shape id predictably), then
-  // apply the same update logic to the freshly cloned slide.
-  const { data: refreshed } = await slidesClient.presentations.get({ presentationId });
-  const reclassified = classifyPresentation(refreshed);
-  const clonedSlide = reclassified.find(s => s.objectId === newSlideId);
-  if (!clonedSlide) {
-    return { status: 'error', message: 'Cloned the template but could not locate the new slide afterward -- check the deck manually.' };
-  }
-
-  const requests = [];
-  // Title (shape[0]) and subtitle (shape[1]) are consistently the
-  // first two shapes on every real slide in this deck -- they're
-  // blank/placeholder on the template and need setting for the first
-  // time here, unlike an existing slide's title which is already
-  // correct and untouched by buildSlideUpdates.
-  if (clonedSlide.shapes[0] && clonedSlide.shapes[1]) {
-    const { title, subtitle } = buildTitleText(piece, influencer, submission);
-    requests.push(
-      { deleteText: { objectId: clonedSlide.shapes[0].objectId, textRange: { type: 'ALL' } } },
-      { insertText: { objectId: clonedSlide.shapes[0].objectId, text: title, insertionIndex: 0 } },
-      { deleteText: { objectId: clonedSlide.shapes[1].objectId, textRange: { type: 'ALL' } } },
-      { insertText: { objectId: clonedSlide.shapes[1].objectId, text: subtitle, insertionIndex: 0 } },
-    );
-  }
-
-  const updates = buildSlideUpdates(clonedSlide, submission, platform);
-  updates.forEach(u => requests.push(
-    { deleteText: { objectId: u.objectId, textRange: { type: 'ALL' } } },
-    { insertText: { objectId: u.objectId, text: u.newText, insertionIndex: 0 } },
-    ...buildStyleRequests(u.objectId, u.newText, u.caption),
-  ));
-
-  if (requests.length) {
-    await slidesClient.presentations.batchUpdate({ presentationId, requestBody: { requests } });
-  }
-  return { status: 'cloned_and_updated', shapesChanged: updates.length, titleSet: !!(clonedSlide.shapes[0] && clonedSlide.shapes[1]) };
+  // TEMPORARY: auto-cloning on a no-match is paused while matching
+  // itself is being debugged -- every false "no match" was silently
+  // creating a duplicate slide, which is expensive to clean up each
+  // time. Report full diagnostics instead so the actual mismatch is
+  // visible before anything gets cloned.
+  return {
+    status: 'no_match_debug',
+    message: `No slide found for ${influencer} / ${platform} / ${piece}. Cloning is paused for now -- see debug info for what was actually searched vs what exists in the deck.`,
+    debug: {
+      searchedFor: { influencer, influencerNormalized: influencer?.trim().toLowerCase(), platform, piece },
+      allSlidesInDeck: classified.map(s => ({
+        objectId: s.objectId, influencer: s.influencer, platform: s.platform,
+        piece: s.piece, isTemplate: s.isTemplate,
+      })),
+    },
+  };
 }
 
 module.exports = async (req, res) => {
