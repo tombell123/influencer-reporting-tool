@@ -337,7 +337,7 @@
   // key), not the wider tab
   const MOCK_INFLUENCERS = {
     "Back To School": ["@chrisgmcrawford", "@miyakalith", "@shellandthelittlies",
-      "@la_sidhu", "@franki.dammone", "@charlielaunder", "@katebowbow", "@basma_k"],
+      "@la_sidhu", "@franki.dammone", "@charlielaunder", "@katebowbow", "@katemurnane", "@basma_k"],
     "Ambassador": ["@sarahlouiseblythe", "@lissyroddyy"],
     "Product Launch": [],
   };
@@ -363,6 +363,26 @@
       { influencer: "@chrisgmcrawford", platform: "IG", piece: "reel" },
       { influencer: "@chrisgmcrawford", platform: "IG", piece: "stories" },
       { influencer: "@chrisgmcrawford", platform: "TT", piece: "tiktok" },
+      { influencer: "@shellandthelittlies", platform: "IG", piece: "reel" },
+      { influencer: "@shellandthelittlies", platform: "IG", piece: "stories" },
+      { influencer: "@shellandthelittlies", platform: "TT", piece: "tiktok" },
+      { influencer: "@franki.dammone", platform: "IG", piece: "reel" },
+      { influencer: "@franki.dammone", platform: "IG", piece: "stories" },
+      { influencer: "@franki.dammone", platform: "TT", piece: "tiktok" },
+      { influencer: "@katebowbow", platform: "IG", piece: "reel" },
+      { influencer: "@katebowbow", platform: "IG", piece: "stories" },
+      // note: katebowbow has NO TikTok slide -- that's a different
+      // person (katemurnane) in this deck, not a missing entry
+      { influencer: "@katemurnane", platform: "TT", piece: "tiktok" },
+      { influencer: "@charlielaunder", platform: "IG", piece: "reel" },
+      { influencer: "@charlielaunder", platform: "IG", piece: "stories" },
+      { influencer: "@charlielaunder", platform: "TT", piece: "tiktok" },
+      { influencer: "@miyakalith", platform: "IG", piece: "reel" },
+      { influencer: "@miyakalith", platform: "IG", piece: "stories" },
+      { influencer: "@miyakalith", platform: "TT", piece: "tiktok" },
+      { influencer: "@basma_k", platform: "IG", piece: "reel" },
+      { influencer: "@basma_k", platform: "IG", piece: "stories" },
+      { influencer: "@basma_k", platform: "TT", piece: "tiktok" },
     ],
   };
   // Post 1/Post 2 both map to the deck's single "reel" piece type --
@@ -376,7 +396,8 @@
   function checkExistingSlide(deckName, influencer, platform, formPiece) {
     const piece = mapPieceForDeck(formPiece, platform);
     const slides = MOCK_DECK_SLIDES[deckName] || [];
-    const exists = slides.some(s => s.influencer === influencer
+    const target = influencer ? influencer.trim().toLowerCase() : null;
+    const exists = slides.some(s => s.influencer.toLowerCase() === target
       && s.platform === platform && s.piece === piece);
     return { exists, piece };
   }
