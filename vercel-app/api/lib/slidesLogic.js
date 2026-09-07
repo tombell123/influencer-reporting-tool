@@ -110,6 +110,11 @@ function extractSlide(page) {
 function classifySlide(slide) {
   const handleMatch = slide.fullText.match(/@[\w.]+/);
   const influencer = handleMatch ? handleMatch[0] : null;
+  // Kept for matching (case/whitespace-insensitive, same fix applied
+  // to the Sheet's row-matching after "Back to School" vs "Back To
+  // School" caused a silent miss there) alongside the original for
+  // anything that wants the real display casing.
+  const influencerNormalized = influencer ? influencer.trim().toLowerCase() : null;
 
   const isTemplate = /template/i.test(slide.fullText) && !handleMatch;
 
@@ -122,7 +127,7 @@ function classifySlide(slide) {
     platform = 'IG'; piece = 'reel';
   }
 
-  return { ...slide, influencer, platform, piece, isTemplate };
+  return { ...slide, influencer, influencerNormalized, platform, piece, isTemplate };
 }
 
 function classifyPresentation(presentation) {
@@ -130,10 +135,12 @@ function classifyPresentation(presentation) {
 }
 
 /** Same contract as the Python version: 0 matches = needs a clone,
- * 1 = safe to update, 2+ = genuine collision, don't guess. */
+ * 1 = safe to update, 2+ = genuine collision, don't guess. Matching
+ * is case/whitespace-insensitive on the influencer handle. */
 function findSlides(classifiedSlides, influencer, platform, piece) {
+  const target = influencer ? influencer.trim().toLowerCase() : null;
   return classifiedSlides.filter(s =>
-    s.influencer === influencer && s.platform === platform && s.piece === piece && !s.isTemplate);
+    s.influencerNormalized === target && s.platform === platform && s.piece === piece && !s.isTemplate);
 }
 
 function findTemplate(classifiedSlides, piece) {
@@ -212,7 +219,7 @@ function buildSlideUpdates(slide, submission, platform) {
     }
 
     if (newText !== shape.text) {
-      updates.push({ objectId: shape.objectId, oldText: shape.text, newText });
+      updates.push({ objectId: shape.objectId, oldText: shape.text, newText, caption });
     }
   }
 
@@ -234,7 +241,51 @@ function buildTitleText(piece, influencer, submission) {
   return { title, subtitle };
 }
 
+/** Given a shape's final rebuilt text, returns the updateTextStyle
+ * requests needed to apply the deck's styling convention: the leading
+ * number is bold, and (for the Total engagements box specifically)
+ * each individual stat line is italic. Ranges are computed from the
+ * text itself, not assumed -- this is the part most likely to have an
+ * off-by-one bug, so it's covered by its own tests. */
+function buildStyleRequests(objectId, newText, caption) {
+  const requests = [];
+
+  // The leading number is always the first line -- bold it.
+  const firstLineEnd = newText.indexOf('\n');
+  if (firstLineEnd > 0) {
+    requests.push({
+      updateTextStyle: {
+        objectId,
+        textRange: { type: 'FIXED_RANGE', startIndex: 0, endIndex: firstLineEnd },
+        style: { bold: true },
+        fields: 'bold',
+      },
+    });
+  }
+
+  // Total engagements specifically: italicize each individual stat
+  // line (everything after the "Total engagements" caption line).
+  if (caption === 'Total engagements') {
+    const captionIdx = newText.indexOf('Total engagements');
+    if (captionIdx !== -1) {
+      const statsStart = newText.indexOf('\n', captionIdx) + 1;
+      if (statsStart > 0 && statsStart < newText.length) {
+        requests.push({
+          updateTextStyle: {
+            objectId,
+            textRange: { type: 'FIXED_RANGE', startIndex: statsStart, endIndex: newText.length },
+            style: { italic: true },
+            fields: 'italic',
+          },
+        });
+      }
+    }
+  }
+
+  return requests;
+}
+
 module.exports = {
-  classifyPresentation, findSlides, findTemplate, buildSlideUpdates, buildTitleText,
+  classifyPresentation, findSlides, findTemplate, buildSlideUpdates, buildTitleText, buildStyleRequests,
   shapeText, extractSlide, classifySlide, // exported for testing
 };
