@@ -658,7 +658,10 @@
       let deckSummary = '';
       if (result.deckResult) {
         const d = result.deckResult;
-        deckSummary = d.status === 'updated' ? ` · Deck: ${d.shapesChanged} box(es) updated`
+        const discrepancyNote = d.handleDiscrepancies?.length
+          ? ` (fixed handle mismatch: slide had "${d.handleDiscrepancies[0].onSlide}", sheet says "${d.handleDiscrepancies[0].fromSheet}")`
+          : '';
+        deckSummary = d.status === 'updated' ? ` · Deck: ${d.shapesChanged} box(es) updated${discrepancyNote}`
           : d.status === 'cloned_and_updated' ? ` · Deck: new slide cloned, ${d.shapesChanged} box(es) filled in`
           : d.status === 'ambiguous' ? ` · Deck: ⚠ ${d.message}`
           : d.status === 'no_match_debug' ? ` · Deck: ⚠ Searched for ${JSON.stringify(d.debug?.searchedFor)} — deck actually contains: ${JSON.stringify(d.debug?.allSlidesInDeck)}`
