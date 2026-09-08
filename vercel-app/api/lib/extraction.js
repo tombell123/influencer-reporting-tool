@@ -13,7 +13,9 @@ For each distinct frame, output:
 
 Use "Views" (total impressions) if shown; if only "Viewers" (unique people) is shown for that screenshot, use it as a fallback for "views" but prefer "Views" when both appear across the merged screenshots for that frame. "Likes" comes from the Interactions section.
 
-**2. Instagram Reel/Post insights** -- shows the post's image/video, caption, and stats: Views, Watch time, Likes, Comments, Shares/Reposts, Saves, Reach (sometimes labeled "Accounts reached"), Interactions, Profile activity, Audience (Men/Women %), sometimes a Facebook cross-post breakdown (ignore the Facebook-specific numbers). This is ONE piece regardless of how many screenshots show different scrolled sections.
+**2. Instagram Reel/Post insights** -- shows the post's image/video, caption, and stats: Views, Watch time, Likes, Comments, Shares/Reposts, Saves, Interactions, Profile activity, Audience (Men/Women %), sometimes a Facebook cross-post breakdown (ignore the Facebook-specific numbers). This is ONE piece regardless of how many screenshots show different scrolled sections.
+
+IMPORTANT: Instagram's own app does NOT use the word "Reach" on a Reel's insights screen. Instead, when you see BOTH "Views" (total plays/impressions) AND "Viewers" (a smaller, separate number representing unique accounts) shown together -- typically "Views" as the large headline number and "Viewers" as a secondary figure directly below or near it -- that "Viewers" figure IS the reach value. Extract it into the "reach" field. Do not confuse it with a Story's "Viewers" (which is that metric's own views count, a different context) -- this rule applies specifically when Views and Viewers appear TOGETHER on the same Reel/Post screen as two distinct numbers.
 
 Output:
 {"type": "reel", "views": <int>, "likes": <int>, "comments": <int>, "shares": <int, default 0>, "saves": <int>, "reach": <int, or null if not shown>}
