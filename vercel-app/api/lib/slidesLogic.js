@@ -169,11 +169,52 @@ function findTemplate(classifiedSlides, piece) {
  * left completely alone. Uses targeted substitution (see primitives
  * above) rather than rebuilding shape text from scratch, so it
  * survives whatever blank-line/formatting quirks the real slide has. */
+/** Updates a title's handle and/or follower count. The Sheet is
+ * treated as the source of truth for spelling/casing of the handle --
+ * if what's on the slide differs from the Sheet's version, it gets
+ * corrected, and the discrepancy is reported back rather than fixed
+ * silently. followers always overwrites (never additive), same
+ * convention as the Sheet's own Followers column. Either argument can
+ * be omitted (pass null) to leave that part untouched. */
+function updateTitle(text, canonicalHandle, newFollowers) {
+  const re = /(@[\w.]+)(:\s*)([\d,.]+[kK]?|[xX\-])(\s*followers)/;
+  const m = text.match(re);
+  if (!m) return { newText: text, handleDiscrepancy: null };
+
+  const [fullMatch, oldHandle, sep, oldFollowersToken, after] = m;
+  const handleDiffers = canonicalHandle != null && oldHandle.toLowerCase() !== canonicalHandle.toLowerCase();
+  const finalHandle = canonicalHandle != null ? canonicalHandle : oldHandle;
+  const finalFollowers = newFollowers != null ? fmt(newFollowers) : oldFollowersToken;
+
+  const replacement = `${finalHandle}${sep}${finalFollowers}${after}`;
+  const newText = text.slice(0, m.index) + replacement + text.slice(m.index + fullMatch.length);
+
+  return {
+    newText,
+    handleDiscrepancy: handleDiffers ? { onSlide: oldHandle, fromSheet: canonicalHandle } : null,
+  };
+}
+
 function buildSlideUpdates(slide, submission, platform) {
   const updates = [];
   const has = (field) => submission[field] != null;
+  const discrepancies = [];
 
   for (const shape of slide.shapes) {
+    // The title shape (always the first one) holds the handle and
+    // follower count, sometimes combined with the subtitle in the
+    // same shape -- handle it separately from the caption-based
+    // stat boxes below, since it has no recognized caption of its own.
+    if (shape === slide.shapes[0] && (has('followers') || has('canonicalInfluencer'))) {
+      const { newText: updatedTitle, handleDiscrepancy } = updateTitle(
+        shape.text, submission.canonicalInfluencer ?? null, submission.followers ?? null);
+      if (handleDiscrepancy) discrepancies.push(handleDiscrepancy);
+      if (updatedTitle !== shape.text) {
+        updates.push({ objectId: shape.objectId, oldText: shape.text, newText: updatedTitle, caption: 'Title' });
+      }
+      continue;
+    }
+
     const lines = cleanLines(shape.text);
     const caption = lines[1]; // number/value is lines[0], caption is lines[1] once blanks are stripped
     let newText = shape.text;
@@ -223,6 +264,7 @@ function buildSlideUpdates(slide, submission, platform) {
     }
   }
 
+  updates.discrepancies = discrepancies;
   return updates;
 }
 
@@ -248,6 +290,8 @@ function buildTitleText(piece, influencer, submission) {
  * text itself, not assumed -- this is the part most likely to have an
  * off-by-one bug, so it's covered by its own tests. */
 function buildStyleRequests(objectId, newText, caption) {
+  if (caption === 'Title') return []; // title styling is never touched, only its follower count changes
+
   const requests = [];
 
   // The leading number is always the first line -- bold it.
@@ -286,6 +330,6 @@ function buildStyleRequests(objectId, newText, caption) {
 }
 
 module.exports = {
-  classifyPresentation, findSlides, findTemplate, buildSlideUpdates, buildTitleText, buildStyleRequests,
+  classifyPresentation, findSlides, findTemplate, buildSlideUpdates, buildTitleText, buildStyleRequests, updateTitle,
   shapeText, extractSlide, classifySlide, // exported for testing
 };
