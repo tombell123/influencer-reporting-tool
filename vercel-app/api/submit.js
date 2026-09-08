@@ -7,7 +7,7 @@
 
 const Anthropic = require('@anthropic-ai/sdk');
 const { google } = require('googleapis');
-const { findExistingRow, buildAdditiveUpdate } = require('./lib/sheetLogic');
+const { findExistingRow, buildAdditiveUpdate, COLS } = require('./lib/sheetLogic');
 const { EXTRACTION_SYSTEM_PROMPT, parseExtractionResponse } = require('./lib/extraction');
 const { assembleSubmissions, filterPiecesBySelection } = require('./lib/assemble');
 const { classifyPresentation, findSlides, findTemplate, buildSlideUpdates, buildTitleText, buildStyleRequests } = require('./lib/slidesLogic');
@@ -42,7 +42,11 @@ async function updateDeck(slidesClient, presentationId, influencer, platform, pi
       ...buildStyleRequests(u.objectId, u.newText, u.caption),
     ]);
     await slidesClient.presentations.batchUpdate({ presentationId, requestBody: { requests } });
-    return { status: 'updated', shapesChanged: updates.length };
+    return {
+      status: 'updated',
+      shapesChanged: updates.length,
+      handleDiscrepancies: updates.discrepancies?.length ? updates.discrepancies : undefined,
+    };
   }
 
   // TEMPORARY: auto-cloning on a no-match is paused while matching
@@ -158,6 +162,7 @@ module.exports = async (req, res) => {
     const sheets = google.sheets({ version: 'v4', auth: client });
 
     const results = [];
+    const canonicalNamesByChannel = {}; // channel -> the exact name as stored in the Sheet
     for (const submission of submissions) {
       if (followers != null) submission.followers = followers;
 
@@ -178,6 +183,7 @@ module.exports = async (req, res) => {
 
       const sheetRow = foundIdx + 2;
       const row = rows[foundIdx];
+      canonicalNamesByChannel[submission.channel] = row[COLS.influencer];
       const updates = buildAdditiveUpdate(row, submission, resolvedTab, sheetRow);
 
       if (updates.length) {
@@ -200,6 +206,11 @@ module.exports = async (req, res) => {
       // came out of one batch, the deck side only ever expects one
       // platform/piece per submission anyway per the dropdown design).
       const primary = submissions[0];
+      // The Sheet is the source of truth for spelling/casing of the
+      // handle -- if the slide already shows something different,
+      // this corrects it and the discrepancy gets reported rather
+      // than fixed silently.
+      primary.canonicalInfluencer = canonicalNamesByChannel[primary.channel] || null;
       // Deck's "Total engagements" box needs a combined figure the
       // extraction pipeline never produces directly -- derive it the
       // same way the Sheet's own Total column does (SUM of likes
