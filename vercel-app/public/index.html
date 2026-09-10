@@ -322,84 +322,71 @@
   // is the only change needed.
   // Campaign = the TAB name. Project = the block WITHIN that tab
   // (what actually appears in column C, matched against rows). One
-  // tab can hold several projects -- e.g. "Kids SS26" held "Back To
-  // School" plus other blocks in the real sheet ("Spring Bags",
-  // "Ambassador", "Summer Bags" were seen in another tab).
-  const MOCK_CAMPAIGNS = [
-    "Kids SS26", "Cath Kidston SS26", "Home SS26", "Home AW25",
-    "Womens SS26", "Mens 26", "MADE SS26"
-  ];
-  const MOCK_PROJECTS_BY_CAMPAIGN = {
-    "Kids SS26": ["Back To School"],
-    "Cath Kidston SS26": ["Ambassador", "Product Launch"],
-  };
-  // influencer lists are scoped to a PROJECT (the actual matching
-  // key), not the wider tab
-  const MOCK_INFLUENCERS = {
-    "Back To School": ["@chrisgmcrawford", "@miyakalith", "@shellandthelittlies",
-      "@la_sidhu", "@franki.dammone", "@charlielaunder", "@katebowbow", "@katemurnane", "@basma_k"],
-    "Ambassador": ["@sarahlouiseblythe", "@lissyroddyy"],
-    "Product Launch": [],
-  };
-  // returns { exists: bool } -- simulates checking for an existing row
-  function checkExistingRow(project, influencer, platform) {
-    const list = MOCK_INFLUENCERS[project] || [];
-    return { exists: list.includes(influencer) };
+  // ---- Live data (replaces the earlier hardcoded mock lists) --------
+  // Every list here now comes from a real call to /api/lookup, which
+  // reads the actual Sheet/Drive folder. Falls back to showing an
+  // error state in the dropdown rather than silently going blank if
+  // a fetch fails, so a broken connection is obvious rather than
+  // looking like "there's just nothing here."
+  const SPREADSHEET_ID = '1XuUaK968_Ac0T8GGzaGSQf3tYGT8Ko9FJeOf_92XJGg';
+  // (no fixed PRESENTATION_ID anymore -- the deck is now picked live
+  // from the shared Drive folder, its real file ID is used directly)
+
+  async function fetchLookup(params) {
+    const qs = new URLSearchParams(params).toString();
+    const res = await fetch(`/api/lookup?${qs}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Lookup failed');
+    return data;
   }
 
-  // ---- Deck mock data + logic (mirrors the proven find_slides/find_template rules) ----
-  // decks are also keyed by PROJECT (the real test deck is named after
-  // the project, "Back to School...", not the tab "Kids SS26")
-  const MOCK_DECKS = {
-    "Back To School": ["Back to School - House x NEXT Influencer Report"],
-  };
-  // real slides from the actual test deck, modeled the same way as the
-  // proven Python logic (influencer + platform + piece)
-  const MOCK_DECK_SLIDES = {
-    "Back to School - House x NEXT Influencer Report": [
-      { influencer: "@la_sidhu", platform: "IG", piece: "reel" },
-      { influencer: "@la_sidhu", platform: "IG", piece: "stories" },
-      { influencer: "@la_sidhu", platform: "TT", piece: "tiktok" },
-      { influencer: "@chrisgmcrawford", platform: "IG", piece: "reel" },
-      { influencer: "@chrisgmcrawford", platform: "IG", piece: "stories" },
-      { influencer: "@chrisgmcrawford", platform: "TT", piece: "tiktok" },
-      { influencer: "@shellandthelittlies", platform: "IG", piece: "reel" },
-      { influencer: "@shellandthelittlies", platform: "IG", piece: "stories" },
-      { influencer: "@shellandthelittlies", platform: "TT", piece: "tiktok" },
-      { influencer: "@franki.dammone", platform: "IG", piece: "reel" },
-      { influencer: "@franki.dammone", platform: "IG", piece: "stories" },
-      { influencer: "@franki.dammone", platform: "TT", piece: "tiktok" },
-      { influencer: "@katebowbow", platform: "IG", piece: "reel" },
-      { influencer: "@katebowbow", platform: "IG", piece: "stories" },
-      // note: katebowbow has NO TikTok slide -- that's a different
-      // person (katemurnane) in this deck, not a missing entry
-      { influencer: "@katemurnane", platform: "TT", piece: "tiktok" },
-      { influencer: "@charlielaunder", platform: "IG", piece: "reel" },
-      { influencer: "@charlielaunder", platform: "IG", piece: "stories" },
-      { influencer: "@charlielaunder", platform: "TT", piece: "tiktok" },
-      { influencer: "@miyakalith", platform: "IG", piece: "reel" },
-      { influencer: "@miyakalith", platform: "IG", piece: "stories" },
-      { influencer: "@miyakalith", platform: "TT", piece: "tiktok" },
-      { influencer: "@basma_k", platform: "IG", piece: "reel" },
-      { influencer: "@basma_k", platform: "IG", piece: "stories" },
-      { influencer: "@basma_k", platform: "TT", piece: "tiktok" },
-    ],
-  };
-  // Post 1/Post 2 both map to the deck's single "reel" piece type --
-  // the dropdown value only disambiguates which one to write into
-  // when a collision exists; it's not a separate slide category.
+  function setOptions(selectEl, items, placeholderIfEmpty) {
+    selectEl.innerHTML = '';
+    if (items.length === 0) {
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = placeholderIfEmpty;
+      selectEl.appendChild(o);
+      return;
+    }
+    items.forEach(item => {
+      const o = document.createElement('option');
+      o.value = typeof item === 'string' ? item : item.value;
+      o.textContent = typeof item === 'string' ? item : item.label;
+      selectEl.appendChild(o);
+    });
+  }
+
+  // returns { exists: bool } -- LIVE check against the Sheet's actual
+  // current influencer list for this project (any channel).
+  async function checkExistingRow(project, influencer, platform) {
+    try {
+      const { influencers } = await fetchLookup({ type: 'influencers', campaign: campaignSel.value, project });
+      const target = influencer ? influencer.trim().toLowerCase() : null;
+      return { exists: influencers.some(i => i.trim().toLowerCase() === target) };
+    } catch {
+      return { exists: false }; // fail safe -- treat as "not found" rather than crash the review step
+    }
+  }
+
   function mapPieceForDeck(formPiece, platform) {
     if (platform === 'TT') return 'tiktok';
     if (formPiece === 'stories') return 'stories';
     return 'reel';
   }
-  function checkExistingSlide(deckName, influencer, platform, formPiece) {
+
+  // LIVE check against the actual deck -- same matching logic the
+  // real write uses, so the preview can never disagree with reality
+  // the way the old mock-based preview sometimes did.
+  async function checkExistingSlide(deckId, influencer, platform, formPiece) {
     const piece = mapPieceForDeck(formPiece, platform);
-    const slides = MOCK_DECK_SLIDES[deckName] || [];
-    const target = influencer ? influencer.trim().toLowerCase() : null;
-    const exists = slides.some(s => s.influencer.toLowerCase() === target
-      && s.platform === platform && s.piece === piece);
-    return { exists, piece };
+    try {
+      const { exists } = await fetchLookup({
+        type: 'check-slide', presentationId: deckId, influencer, platform, piece,
+      });
+      return { exists, piece };
+    } catch {
+      return { exists: false, piece };
+    }
   }
 
   // ---- Populate campaign -> project -> influencer/deck dropdowns -----
@@ -409,41 +396,46 @@
   const newBox = document.getElementById('newInfluencerBox');
   const newInput = document.getElementById('newInfluencerName');
 
-  MOCK_CAMPAIGNS.forEach(c => {
-    const o = document.createElement('option');
-    o.value = c; o.textContent = c;
-    campaignSel.appendChild(o);
-  });
-
-  function populateProjects() {
-    projectSel.innerHTML = '';
-    const list = MOCK_PROJECTS_BY_CAMPAIGN[campaignSel.value] || [];
-    if (list.length === 0) {
-      const o = document.createElement('option');
-      o.value = ''; o.textContent = 'No projects found on this tab';
-      projectSel.appendChild(o);
-      return;
+  async function populateCampaigns() {
+    setOptions(campaignSel, [], 'Loading...');
+    try {
+      const { campaigns } = await fetchLookup({ type: 'campaigns' });
+      setOptions(campaignSel, campaigns, 'No campaigns found');
+    } catch (err) {
+      setOptions(campaignSel, [], `Couldn't load campaigns: ${err.message}`);
     }
-    list.forEach(name => {
-      const o = document.createElement('option');
-      o.value = name; o.textContent = name;
-      projectSel.appendChild(o);
-    });
   }
 
-  function populateInfluencers() {
-    influencerSel.innerHTML = '';
-    const list = MOCK_INFLUENCERS[projectSel.value] || [];
-    list.forEach(name => {
-      const o = document.createElement('option');
-      o.value = name; o.textContent = name;
-      influencerSel.appendChild(o);
-    });
-    const addNew = document.createElement('option');
-    addNew.value = '__new__';
-    addNew.textContent = '+ Add new influencer';
-    influencerSel.appendChild(addNew);
-    toggleNewBox();
+  async function populateProjects() {
+    setOptions(projectSel, [], 'Loading...');
+    if (!campaignSel.value) return setOptions(projectSel, [], 'Pick a campaign first');
+    try {
+      const { projects } = await fetchLookup({ type: 'projects', campaign: campaignSel.value });
+      setOptions(projectSel, projects, 'No projects found on this tab');
+    } catch (err) {
+      setOptions(projectSel, [], `Couldn't load projects: ${err.message}`);
+    }
+  }
+
+  async function populateInfluencers() {
+    setOptions(influencerSel, [], 'Loading...');
+    if (!projectSel.value) return;
+    try {
+      const { influencers } = await fetchLookup({ type: 'influencers', campaign: campaignSel.value, project: projectSel.value });
+      influencerSel.innerHTML = '';
+      influencers.forEach(name => {
+        const o = document.createElement('option');
+        o.value = name; o.textContent = name;
+        influencerSel.appendChild(o);
+      });
+      const addNew = document.createElement('option');
+      addNew.value = '__new__';
+      addNew.textContent = '+ Add new influencer';
+      influencerSel.appendChild(addNew);
+      toggleNewBox();
+    } catch (err) {
+      setOptions(influencerSel, [], `Couldn't load influencers: ${err.message}`);
+    }
   }
   function toggleNewBox() {
     newBox.style.display = influencerSel.value === '__new__' ? 'block' : 'none';
@@ -463,29 +455,26 @@
   const deckPickerBox = document.getElementById('deckPickerBox');
   const deckSelect = document.getElementById('deckSelect');
 
-  function populateDecks() {
-    deckSelect.innerHTML = '';
-    const list = MOCK_DECKS[projectSel.value] || [];
-    if (list.length === 0) {
-      const o = document.createElement('option');
-      o.value = ''; o.textContent = 'No deck found for this project';
-      deckSelect.appendChild(o);
-      return;
+  async function populateDecks() {
+    setOptions(deckSelect, [], 'Loading...');
+    try {
+      const { decks, warning } = await fetchLookup({ type: 'decks' });
+      if (warning) return setOptions(deckSelect, [], warning);
+      setOptions(deckSelect, decks.map(d => ({ value: d.id, label: d.name })), 'No decks found in the shared folder');
+    } catch (err) {
+      setOptions(deckSelect, [], `Couldn't load decks: ${err.message}`);
     }
-    list.forEach(name => {
-      const o = document.createElement('option');
-      o.value = name; o.textContent = name;
-      deckSelect.appendChild(o);
-    });
   }
   function toggleDeckPicker() {
     deckPickerBox.style.display = updateDeckToggle.checked ? 'block' : 'none';
   }
   updateDeckToggle.addEventListener('change', toggleDeckPicker);
 
-  populateProjects();
-  populateInfluencers();
-  populateDecks();
+  populateCampaigns().then(() => {
+    populateProjects();
+    populateInfluencers();
+    populateDecks();
+  });
   toggleDeckPicker();
 
   // ---- File upload -----------------------------------------------------
@@ -539,7 +528,7 @@
   const PIECE_LABELS = { post1: 'Post 1', post2: 'Post 2', stories: 'Stories' };
   const PLATFORM_LABELS = { IG: 'Instagram', TT: 'TikTok' };
 
-  formEl.addEventListener('submit', e => {
+  formEl.addEventListener('submit', async e => {
     e.preventDefault();
     if (files.length === 0) {
       fileError.classList.add('show');
@@ -555,7 +544,7 @@
       ? (newInput.value.trim() || '(name not entered)')
       : influencerSel.value;
 
-    const { exists } = checkExistingRow(project, influencer, platform);
+    const { exists } = await checkExistingRow(project, influencer, platform);
 
     foundBanner.className = 'found-banner' + (exists ? '' : ' new');
     foundBanner.innerHTML = exists
@@ -563,16 +552,17 @@
       : `<span>✨</span><span>No existing row for <strong>${influencer}</strong> yet — a new one will be created in <strong>${project}</strong>.</span>`;
 
     const willUpdateDeck = updateDeckToggle.checked;
-    const deckName = deckSelect.value;
+    const deckId = deckSelect.value;
+    const deckDisplayName = deckSelect.options[deckSelect.selectedIndex]?.textContent || deckId;
     const foundBannerDeck = document.getElementById('foundBannerDeck');
 
-    if (willUpdateDeck && deckName) {
-      const { exists: slideExists } = checkExistingSlide(deckName, influencer, platform, piece);
+    if (willUpdateDeck && deckId) {
+      const { exists: slideExists } = await checkExistingSlide(deckId, influencer, platform, piece);
       foundBannerDeck.style.display = 'flex';
       foundBannerDeck.className = 'found-banner' + (slideExists ? '' : ' new');
       foundBannerDeck.innerHTML = slideExists
-        ? `<span>🔎</span><span>Found <strong>${influencer}</strong>'s ${PIECE_LABELS[piece]} slide in <strong>${deckName}</strong> — numbers will be updated on it.</span>`
-        : `<span>✨</span><span>No slide yet for <strong>${influencer}</strong> — a new one will be cloned from the template in <strong>${deckName}</strong>.</span>`;
+        ? `<span>🔎</span><span>Found <strong>${influencer}</strong>'s ${PIECE_LABELS[piece]} slide in <strong>${deckDisplayName}</strong> — numbers will be updated on it.</span>`
+        : `<span>✨</span><span>No slide yet for <strong>${influencer}</strong> — a new one will be cloned from the template in <strong>${deckDisplayName}</strong>.</span>`;
     } else {
       foundBannerDeck.style.display = 'none';
     }
@@ -586,7 +576,7 @@
       ['Content piece', PIECE_LABELS[piece]],
       ['Followers', followers ? Number(followers).toLocaleString() : '—'],
       ['Screenshots', `${files.length} file${files.length === 1 ? '' : 's'}`],
-      ...(willUpdateDeck ? [['Report deck', deckName || '—']] : []),
+      ...(willUpdateDeck ? [['Report deck', deckDisplayName || '—']] : []),
     ].forEach(([k, v]) => {
       const row = document.createElement('div');
       row.className = 'review-row';
@@ -602,12 +592,6 @@
     reviewState.classList.remove('show');
     formEl.classList.remove('hide');
   });
-
-  // Hardcoded for this test demo -- in a real multi-campaign version
-  // this would come from the campaign dropdown's own config, same as
-  // MOCK_DECKS above.
-  const SPREADSHEET_ID = '1XuUaK968_Ac0T8GGzaGSQf3tYGT8Ko9FJeOf_92XJGg';
-  const PRESENTATION_ID = '113ifBlvWP7LeVdMxZ5jCb7HtwLZH5ovYTC0zE8XNyuo';
 
   function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -641,7 +625,7 @@
           influencer, platform, contentPiece,
           followers: followers ? Number(followers) : null,
           spreadsheetId: SPREADSHEET_ID,
-          presentationId: (updateDeckToggle.checked && deckSelect.value) ? PRESENTATION_ID : null,
+          presentationId: (updateDeckToggle.checked && deckSelect.value) ? deckSelect.value : null,
           images,
         }),
       });
