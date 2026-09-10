@@ -440,14 +440,14 @@
   function toggleNewBox() {
     newBox.style.display = influencerSel.value === '__new__' ? 'block' : 'none';
   }
-  campaignSel.addEventListener('change', () => {
-    populateProjects();
-    populateInfluencers();
-    populateDecks();
+  campaignSel.addEventListener('change', async () => {
+    await populateProjects();
+    await populateInfluencers();
+    await populateDecks();
   });
-  projectSel.addEventListener('change', () => {
-    populateInfluencers();
-    populateDecks();
+  projectSel.addEventListener('change', async () => {
+    await populateInfluencers();
+    await populateDecks();
   });
   influencerSel.addEventListener('change', toggleNewBox);
 
@@ -470,11 +470,12 @@
   }
   updateDeckToggle.addEventListener('change', toggleDeckPicker);
 
-  populateCampaigns().then(() => {
-    populateProjects();
-    populateInfluencers();
-    populateDecks();
-  });
+  (async () => {
+    await populateCampaigns();
+    await populateProjects();
+    await populateInfluencers();
+    await populateDecks();
+  })();
   toggleDeckPicker();
 
   // ---- File upload -----------------------------------------------------
