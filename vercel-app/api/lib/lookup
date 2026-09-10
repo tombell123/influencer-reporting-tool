@@ -31,7 +31,7 @@ const SPREADSHEET_ID = '1XuUaK968_Ac0T8GGzaGSQf3tYGT8Ko9FJeOf_92XJGg';
 // TODO: set this to the shared folder's ID once created (the string
 // in its URL after "folders/"). Decks won't be discoverable until
 // this is filled in.
-const DECK_FOLDER_ID = 'REPLACE_ME_WITH_REAL_FOLDER_ID';
+const DECK_FOLDER_ID = '1gCCypWjpIpBBj5JxkGWesZeyZXjRha0t';
 
 async function getAuthClient() {
   const key = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
