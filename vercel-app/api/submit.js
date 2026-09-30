@@ -10,7 +10,10 @@ const { google } = require('googleapis');
 const { findExistingRow, buildAdditiveUpdate, COLS } = require('./lib/sheetLogic');
 const { EXTRACTION_SYSTEM_PROMPT, parseExtractionResponse } = require('./lib/extraction');
 const { assembleSubmissions, filterPiecesBySelection } = require('./lib/assemble');
-const { classifyPresentation, findSlides, findTemplate, buildSlideUpdates, buildTitleText, buildStyleRequests } = require('./lib/slidesLogic');
+const {
+  classifyPresentation, findSlides, findTemplate, buildSlideUpdates,
+  buildTitleText, buildStyleRequests, extractSlide, classifySlide,
+} = require('./lib/slidesLogic');
 
 /** Updates an EXISTING slide's stat-box shapes in place, or clones a
  * named template for a brand-new influencer. Returns a short status
@@ -49,21 +52,103 @@ async function updateDeck(slidesClient, presentationId, influencer, platform, pi
     };
   }
 
-  // TEMPORARY: auto-cloning on a no-match is paused while matching
-  // itself is being debugged -- every false "no match" was silently
-  // creating a duplicate slide, which is expensive to clean up each
-  // time. Report full diagnostics instead so the actual mismatch is
-  // visible before anything gets cloned.
+  // No existing slide -- this used to always report back
+  // 'no_match_debug' with full diagnostics and stop, because during
+  // matching-logic debugging every false "no match" was silently
+  // cloning a duplicate slide (expensive to clean up each time). Now
+  // that matching itself (case-insensitivity, live discovery replacing
+  // the old mock dropdowns) has been fixed and confirmed working, this
+  // clones the named template for the piece and fills it in, the same
+  // way a genuinely new influencer's row gets added to the Sheet.
+  let template;
+  try {
+    template = findTemplate(classified, piece);
+  } catch (err) {
+    return {
+      status: 'no_template',
+      message: `No slide found for ${influencer} / ${platform} / ${piece}, and a new one couldn't be cloned: ${err.message}`,
+      debug: {
+        searchedFor: { influencer, influencerNormalized: influencer?.trim().toLowerCase(), platform, piece },
+        allSlidesInDeck: classified.map(s => ({
+          objectId: s.objectId, influencer: s.influencer, platform: s.platform,
+          piece: s.piece, isTemplate: s.isTemplate,
+        })),
+      },
+    };
+  }
+
+  // Step 1: duplicate the template slide. Slides API creates the
+  // duplicate immediately after the source slide and returns the new
+  // slide's OWN object ID in the reply -- but not its child shapes'
+  // IDs, which are regenerated and only show up on a re-fetch. So the
+  // title/stat-box shapes on the fresh clone can't be targeted until
+  // after that re-fetch.
+  const dupResponse = await slidesClient.presentations.batchUpdate({
+    presentationId,
+    requestBody: { requests: [{ duplicateObject: { objectId: template.objectId } }] },
+  });
+  const newSlideId = dupResponse.data.replies?.[0]?.duplicateObject?.objectId;
+  if (!newSlideId) {
+    return {
+      status: 'error',
+      message: 'Cloned the template slide but the API did not return its new slide ID -- check the deck manually, a blank clone may have been added and will need filling in (or removing) by hand.',
+    };
+  }
+
+  const { data: refetched } = await slidesClient.presentations.get({ presentationId });
+  const newPage = (refetched.slides || []).find(p => p.objectId === newSlideId);
+  if (!newPage) {
+    return {
+      status: 'error',
+      message: `Cloned a new slide (${newSlideId}) but couldn't find it on re-fetch -- check the deck manually.`,
+    };
+  }
+  const newSlide = classifySlide(extractSlide(newPage));
+
+  // Step 2: fill in title/subtitle (an existing slide's title is
+  // already correct and is never touched by buildSlideUpdates -- a
+  // fresh clone is the one case that needs it written from scratch),
+  // then the same stat-box updates any other update uses. The Sheet
+  // is the source of truth for spelling/casing, same convention as
+  // the existing-slide handle-discrepancy check.
+  const canonicalOrGiven = submission.canonicalInfluencer || influencer;
+  const { title, subtitle } = buildTitleText(piece, canonicalOrGiven, submission);
+
+  const shapeUpdates = [];
+  if (newSlide.shapes[0]) {
+    shapeUpdates.push({ objectId: newSlide.shapes[0].objectId, newText: title, caption: 'Title' });
+  }
+  if (newSlide.shapes[1]) {
+    shapeUpdates.push({ objectId: newSlide.shapes[1].objectId, newText: subtitle, caption: 'Subtitle' });
+  }
+
+  // Pass the FULL shape list (not sliced) -- buildSlideUpdates' title
+  // special-case only fires on shape===slide.shapes[0], so slicing off
+  // the title/subtitle here would shift the stat-box shapes into that
+  // same position-0 slot and have them wrongly treated as the title.
+  // Safe to include shapes[0]/[1] as-is: the title text is still the
+  // template's placeholder ("Instagram template", no "@handle: N
+  // followers" pattern), so updateTitle() finds no match and leaves it
+  // untouched, and the subtitle has no recognized stat-box caption, so
+  // neither collides with the shapeUpdates already built above.
+  const statUpdates = buildSlideUpdates(newSlide, submission, platform);
+
+  const allUpdates = [...shapeUpdates, ...statUpdates];
+  const requests = allUpdates.flatMap(u => [
+    { deleteText: { objectId: u.objectId, textRange: { type: 'ALL' } } },
+    { insertText: { objectId: u.objectId, text: u.newText, insertionIndex: 0 } },
+    ...(u.caption === 'Title' || u.caption === 'Subtitle' ? [] : buildStyleRequests(u.objectId, u.newText, u.caption)),
+  ]);
+
+  if (requests.length) {
+    await slidesClient.presentations.batchUpdate({ presentationId, requestBody: { requests } });
+  }
+
   return {
-    status: 'no_match_debug',
-    message: `No slide found for ${influencer} / ${platform} / ${piece}. Cloning is paused for now -- see debug info for what was actually searched vs what exists in the deck.`,
-    debug: {
-      searchedFor: { influencer, influencerNormalized: influencer?.trim().toLowerCase(), platform, piece },
-      allSlidesInDeck: classified.map(s => ({
-        objectId: s.objectId, influencer: s.influencer, platform: s.platform,
-        piece: s.piece, isTemplate: s.isTemplate,
-      })),
-    },
+    status: 'cloned_and_updated',
+    newSlideId,
+    shapesChanged: allUpdates.length,
+    message: `No existing slide for ${influencer} -- cloned the "${piece}" template and filled it in.`,
   };
 }
 
